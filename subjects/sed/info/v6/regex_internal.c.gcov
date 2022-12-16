@@ -1,0 +1,1662 @@
+        -:    0:Source:regex_internal.c
+        -:    0:Graph:sed.gcno
+        -:    0:Data:sed.gcda
+        -:    0:Runs:370
+        -:    1:/* Extended regular expression matching and search library.
+        -:    2:   Copyright (C) 2002 Free Software Foundation, Inc.
+        -:    3:   This file is part of the GNU C Library.
+        -:    4:   Contributed by Isamu Hasegawa <isamu@yamato.ibm.com>.
+        -:    5:
+        -:    6:   The GNU C Library is free software; you can redistribute it and/or
+        -:    7:   modify it under the terms of the GNU Lesser General Public
+        -:    8:   License as published by the Free Software Foundation; either
+        -:    9:   version 2.1 of the License, or (at your option) any later version.
+        -:   10:
+        -:   11:   The GNU C Library is distributed in the hope that it will be useful,
+        -:   12:   but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13:   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   14:   Lesser General Public License for more details.
+        -:   15:
+        -:   16:   You should have received a copy of the GNU Lesser General Public
+        -:   17:   License along with the GNU C Library; if not, write to the Free
+        -:   18:   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+        -:   19:   02111-1307 USA.  */
+        -:   20:
+        -:   21:static void re_string_construct_common (const char *str, int len,
+        -:   22:					re_string_t *pstr,
+        -:   23:					RE_TRANSLATE_TYPE trans, int icase);
+        -:   24:#ifdef RE_ENABLE_I18N
+        -:   25:static int re_string_skip_chars (re_string_t *pstr, int new_raw_idx,
+        -:   26:				 wint_t *last_wc);
+        -:   27:#endif /* RE_ENABLE_I18N */
+        -:   28:static re_dfastate_t *create_newstate_common (re_dfa_t *dfa,
+        -:   29:					      const re_node_set *nodes,
+        -:   30:					      unsigned int hash);
+        -:   31:static reg_errcode_t register_state (re_dfa_t *dfa, re_dfastate_t *newstate,
+        -:   32:				     unsigned int hash);
+        -:   33:static re_dfastate_t *create_ci_newstate (re_dfa_t *dfa,
+        -:   34:					  const re_node_set *nodes,
+        -:   35:					  unsigned int hash);
+        -:   36:static re_dfastate_t *create_cd_newstate (re_dfa_t *dfa,
+        -:   37:					  const re_node_set *nodes,
+        -:   38:					  unsigned int context,
+        -:   39:					  unsigned int hash);
+        -:   40:static unsigned int inline calc_state_hash (const re_node_set *nodes,
+        -:   41:					    unsigned int context);
+        -:   42:
+        -:   43:/* Functions for string operation.  */
+        -:   44:
+        -:   45:/* This function allocate the buffers.  It is necessary to call
+        -:   46:   re_string_reconstruct before using the object.  */
+        -:   47:
+        -:   48:static reg_errcode_t
+function re_string_allocate called 49072 returned 100% blocks executed 78%
+    49072:   49:re_string_allocate (pstr, str, len, init_len, trans, icase)
+        -:   50:     re_string_t *pstr;
+        -:   51:     const char *str;
+        -:   52:     int len, init_len, icase;
+        -:   53:     RE_TRANSLATE_TYPE trans;
+        -:   54:{
+        -:   55:  reg_errcode_t ret;
+    49072:   56:  int init_buf_len = (len + 1 < init_len) ? len + 1: init_len;
+    49072:   57:  re_string_construct_common (str, len, pstr, trans, icase);
+call    0 returned 49072
+    49072:   58:  pstr->stop = pstr->len;
+        -:   59:
+    49072:   60:  ret = re_string_realloc_buffers (pstr, init_buf_len);
+call    0 returned 49072
+    49072:   61:  if (BE (ret != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 49072
+    #####:   62:    return ret;
+        -:   63:
+    98144:   64:  pstr->mbs_case = (MBS_CASE_ALLOCATED (pstr) ? pstr->mbs_case
+   49072*:   65:		    : (unsigned char *) str);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 49072
+   49072*:   66:  pstr->mbs = MBS_ALLOCATED (pstr) ? pstr->mbs : pstr->mbs_case;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 49072
+    49072:   67:  pstr->valid_len = (MBS_CASE_ALLOCATED (pstr) || MBS_ALLOCATED (pstr)
+branch  0 taken 49072 (fallthrough)
+branch  1 taken 0
+   98144*:   68:		     || MB_CUR_MAX > 1) ? pstr->valid_len : len;
+branch  0 taken 49072 (fallthrough)
+branch  1 taken 0
+call    2 returned 49072
+branch  3 taken 0 (fallthrough)
+branch  4 taken 49072
+    49072:   69:  return REG_NOERROR;
+        -:   70:}
+        -:   71:
+        -:   72:/* This function allocate the buffers, and initialize them.  */
+        -:   73:
+        -:   74:static reg_errcode_t
+function re_string_construct called 610 returned 100% blocks executed 72%
+      610:   75:re_string_construct (pstr, str, len, trans, icase)
+        -:   76:     re_string_t *pstr;
+        -:   77:     const char *str;
+        -:   78:     int len, icase;
+        -:   79:     RE_TRANSLATE_TYPE trans;
+        -:   80:{
+        -:   81:  reg_errcode_t ret;
+      610:   82:  re_string_construct_common (str, len, pstr, trans, icase);
+call    0 returned 610
+      610:   83:  pstr->stop = pstr->len;
+        -:   84:  /* Set 0 so that this function can initialize whole buffers.  */
+      610:   85:  pstr->valid_len = 0;
+        -:   86:
+      610:   87:  if (len > 0)
+branch  0 taken 610 (fallthrough)
+branch  1 taken 0
+        -:   88:    {
+      610:   89:      ret = re_string_realloc_buffers (pstr, len + 1);
+call    0 returned 610
+      610:   90:      if (BE (ret != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+    #####:   91:	return ret;
+        -:   92:    }
+     1220:   93:  pstr->mbs_case = (MBS_CASE_ALLOCATED (pstr) ? pstr->mbs_case
+     610*:   94:		    : (unsigned char *) str);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+     610*:   95:  pstr->mbs = MBS_ALLOCATED (pstr) ? pstr->mbs : pstr->mbs_case;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+        -:   96:
+      610:   97:  if (icase)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+        -:   98:    {
+        -:   99:#ifdef RE_ENABLE_I18N
+        -:  100:      if (MB_CUR_MAX > 1)
+        -:  101:	build_wcs_upper_buffer (pstr);
+        -:  102:      else
+        -:  103:#endif /* RE_ENABLE_I18N  */
+    #####:  104:	build_upper_buffer (pstr);
+call    0 never executed
+        -:  105:    }
+        -:  106:  else
+        -:  107:    {
+        -:  108:#ifdef RE_ENABLE_I18N
+        -:  109:      if (MB_CUR_MAX > 1)
+        -:  110:	build_wcs_buffer (pstr);
+        -:  111:      else
+        -:  112:#endif /* RE_ENABLE_I18N  */
+        -:  113:	{
+      610:  114:	  if (trans != NULL)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+    #####:  115:	    re_string_translate_buffer (pstr);
+call    0 never executed
+        -:  116:	  else
+      610:  117:	    pstr->valid_len = len;
+        -:  118:	}
+        -:  119:    }
+        -:  120:
+        -:  121:  /* Initialized whole buffers, then valid_len == bufs_len.  */
+      610:  122:  pstr->valid_len = pstr->bufs_len;
+      610:  123:  return REG_NOERROR;
+        -:  124:}
+        -:  125:
+        -:  126:/* Helper functions for re_string_allocate, and re_string_construct.  */
+        -:  127:
+        -:  128:static reg_errcode_t
+function re_string_realloc_buffers called 54167 returned 100% blocks executed 36%
+    54167:  129:re_string_realloc_buffers (pstr, new_buf_len)
+        -:  130:     re_string_t *pstr;
+        -:  131:     int new_buf_len;
+        -:  132:{
+        -:  133:#ifdef RE_ENABLE_I18N
+        -:  134:  if (MB_CUR_MAX > 1)
+        -:  135:    {
+        -:  136:      wint_t *new_array = re_realloc (pstr->wcs, wint_t, new_buf_len);
+        -:  137:      if (BE (new_array == NULL, 0))
+        -:  138:	return REG_ESPACE;
+        -:  139:      pstr->wcs = new_array;
+        -:  140:    }
+        -:  141:#endif /* RE_ENABLE_I18N  */
+    54167:  142:  if (MBS_ALLOCATED (pstr))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 54167
+        -:  143:    {
+    #####:  144:      unsigned char *new_array = re_realloc (pstr->mbs, unsigned char,
+        -:  145:					     new_buf_len);
+    #####:  146:      if (BE (new_array == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+    #####:  147:	return REG_ESPACE;
+    #####:  148:      pstr->mbs = new_array;
+        -:  149:    }
+    54167:  150:  if (MBS_CASE_ALLOCATED (pstr))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 54167
+        -:  151:    {
+    #####:  152:      unsigned char *new_array = re_realloc (pstr->mbs_case, unsigned char,
+        -:  153:					     new_buf_len);
+    #####:  154:      if (BE (new_array == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+    #####:  155:	return REG_ESPACE;
+    #####:  156:      pstr->mbs_case = new_array;
+    #####:  157:      if (!MBS_ALLOCATED (pstr))
+branch  0 never executed
+branch  1 never executed
+    #####:  158:	pstr->mbs = pstr->mbs_case;
+        -:  159:    }
+    54167:  160:  pstr->bufs_len = new_buf_len;
+    54167:  161:  return REG_NOERROR;
+        -:  162:}
+        -:  163:
+        -:  164:
+        -:  165:static void
+function re_string_construct_common called 49682 returned 100% blocks executed 100%
+    49682:  166:re_string_construct_common (str, len, pstr, trans, icase)
+        -:  167:     const char *str;
+        -:  168:     int len;
+        -:  169:     re_string_t *pstr;
+        -:  170:     RE_TRANSLATE_TYPE trans;
+        -:  171:     int icase;
+        -:  172:{
+    49682:  173:  memset (pstr, '\0', sizeof (re_string_t));
+    49682:  174:  pstr->raw_mbs = (const unsigned char *) str;
+    49682:  175:  pstr->len = len;
+    49682:  176:  pstr->trans = trans;
+    49682:  177:  pstr->icase = icase ? 1 : 0;
+    49682:  178:}
+        -:  179:
+        -:  180:#ifdef RE_ENABLE_I18N
+        -:  181:
+        -:  182:/* Build wide character buffer PSTR->WCS.
+        -:  183:   If the byte sequence of the string are:
+        -:  184:     <mb1>(0), <mb1>(1), <mb2>(0), <mb2>(1), <sb3>
+        -:  185:   Then wide character buffer will be:
+        -:  186:     <wc1>   , WEOF    , <wc2>   , WEOF    , <wc3>
+        -:  187:   We use WEOF for padding, they indicate that the position isn't
+        -:  188:   a first byte of a multibyte character.
+        -:  189:
+        -:  190:   Note that this function assumes PSTR->VALID_LEN elements are already
+        -:  191:   built and starts from PSTR->VALID_LEN.  */
+        -:  192:
+        -:  193:static void
+        -:  194:build_wcs_buffer (pstr)
+        -:  195:     re_string_t *pstr;
+        -:  196:{
+        -:  197:  mbstate_t prev_st;
+        -:  198:  int byte_idx, end_idx, mbclen, remain_len;
+        -:  199:  /* Build the buffers from pstr->valid_len to either pstr->len or
+        -:  200:     pstr->bufs_len.  */
+        -:  201:  end_idx = (pstr->bufs_len > pstr->len)? pstr->len : pstr->bufs_len;
+        -:  202:  for (byte_idx = pstr->valid_len; byte_idx < end_idx;)
+        -:  203:    {
+        -:  204:      wchar_t wc;
+        -:  205:      remain_len = end_idx - byte_idx;
+        -:  206:      prev_st = pstr->cur_state;
+        -:  207:      mbclen = mbrtowc (&wc, ((const char *) pstr->raw_mbs + pstr->raw_mbs_idx
+        -:  208:			      + byte_idx), remain_len, &pstr->cur_state);
+        -:  209:      if (BE (mbclen == (size_t) -2, 0))
+        -:  210:	{
+        -:  211:	  /* The buffer doesn't have enough space, finish to build.  */
+        -:  212:	  pstr->cur_state = prev_st;
+        -:  213:	  break;
+        -:  214:	}
+        -:  215:      else if (BE (mbclen == (size_t) -1 || mbclen == 0, 0))
+        -:  216:	{
+        -:  217:	  /* We treat these cases as a singlebyte character.  */
+        -:  218:	  mbclen = 1;
+        -:  219:	  wc = (wchar_t) pstr->raw_mbs[pstr->raw_mbs_idx + byte_idx];
+        -:  220:	  pstr->cur_state = prev_st;
+        -:  221:	}
+        -:  222:
+        -:  223:      /* Apply the translateion if we need.  */
+        -:  224:      if (pstr->trans != NULL && mbclen == 1)
+        -:  225:	{
+        -:  226:	  int ch = pstr->trans[pstr->raw_mbs[pstr->raw_mbs_idx + byte_idx]];
+        -:  227:	  pstr->mbs_case[byte_idx] = ch;
+        -:  228:	}
+        -:  229:      /* Write wide character and padding.  */
+        -:  230:      pstr->wcs[byte_idx++] = wc;
+        -:  231:      /* Write paddings.  */
+        -:  232:      for (remain_len = byte_idx + mbclen - 1; byte_idx < remain_len ;)
+        -:  233:	pstr->wcs[byte_idx++] = WEOF;
+        -:  234:    }
+        -:  235:  pstr->valid_len = byte_idx;
+        -:  236:}
+        -:  237:
+        -:  238:/* Build wide character buffer PSTR->WCS like build_wcs_buffer,
+        -:  239:   but for REG_ICASE.  */
+        -:  240:
+        -:  241:static void
+        -:  242:build_wcs_upper_buffer (pstr)
+        -:  243:     re_string_t *pstr;
+        -:  244:{
+        -:  245:  mbstate_t prev_st;
+        -:  246:  int byte_idx, end_idx, mbclen, remain_len;
+        -:  247:  /* Build the buffers from pstr->valid_len to either pstr->len or
+        -:  248:     pstr->bufs_len.  */
+        -:  249:  end_idx = (pstr->bufs_len > pstr->len)? pstr->len : pstr->bufs_len;
+        -:  250:  for (byte_idx = pstr->valid_len; byte_idx < end_idx;)
+        -:  251:    {
+        -:  252:      wchar_t wc;
+        -:  253:      remain_len = end_idx - byte_idx;
+        -:  254:      prev_st = pstr->cur_state;
+        -:  255:      mbclen = mbrtowc (&wc, ((const char *) pstr->raw_mbs + pstr->raw_mbs_idx
+        -:  256:			      + byte_idx), remain_len, &pstr->cur_state);
+        -:  257:      if (BE (mbclen == (size_t) -2, 0))
+        -:  258:	{
+        -:  259:	  /* The buffer doesn't have enough space, finish to build.  */
+        -:  260:	  pstr->cur_state = prev_st;
+        -:  261:	  break;
+        -:  262:	}
+        -:  263:      else if (mbclen == 1 || mbclen == (size_t) -1 || mbclen == 0)
+        -:  264:	{
+        -:  265:	  /* In case of a singlebyte character.  */
+        -:  266:	  int ch = pstr->raw_mbs[pstr->raw_mbs_idx + byte_idx];
+        -:  267:	  /* Apply the translateion if we need.  */
+        -:  268:	  if (pstr->trans != NULL && mbclen == 1)
+        -:  269:	    {
+        -:  270:	      ch = pstr->trans[ch];
+        -:  271:	      pstr->mbs_case[byte_idx] = ch;
+        -:  272:	    }
+        -:  273:	  pstr->wcs[byte_idx] = iswlower (wc) ? toupper (wc) : wc;
+        -:  274:	  pstr->mbs[byte_idx++] = islower (ch) ? toupper (ch) : ch;
+        -:  275:	  if (BE (mbclen == (size_t) -1, 0))
+        -:  276:	    pstr->cur_state = prev_st;
+        -:  277:	}
+        -:  278:      else /* mbclen > 1 */
+        -:  279:	{
+        -:  280:	  if (iswlower (wc))
+        -:  281:	    wcrtomb ((char *) pstr->mbs + byte_idx, towupper (wc), &prev_st);
+        -:  282:	  else
+        -:  283:	    memcpy (pstr->mbs + byte_idx,
+        -:  284:		    pstr->raw_mbs + pstr->raw_mbs_idx + byte_idx, mbclen);
+        -:  285:	  pstr->wcs[byte_idx++] = iswlower (wc) ? toupper (wc) : wc;
+        -:  286:	  /* Write paddings.  */
+        -:  287:	  for (remain_len = byte_idx + mbclen - 1; byte_idx < remain_len ;)
+        -:  288:	    pstr->wcs[byte_idx++] = WEOF;
+        -:  289:	}
+        -:  290:    }
+        -:  291:  pstr->valid_len = byte_idx;
+        -:  292:}
+        -:  293:
+        -:  294:/* Skip characters until the index becomes greater than NEW_RAW_IDX.
+        -:  295:   Return the index.  */
+        -:  296:
+        -:  297:static int
+        -:  298:re_string_skip_chars (pstr, new_raw_idx, last_wc)
+        -:  299:     re_string_t *pstr;
+        -:  300:     int new_raw_idx;
+        -:  301:     wint_t *last_wc;
+        -:  302:{
+        -:  303:  mbstate_t prev_st;
+        -:  304:  int rawbuf_idx, mbclen;
+        -:  305:  wchar_t wc = 0;
+        -:  306:
+        -:  307:  /* Skip the characters which are not necessary to check.  */
+        -:  308:  for (rawbuf_idx = pstr->raw_mbs_idx + pstr->valid_len;
+        -:  309:       rawbuf_idx < new_raw_idx;)
+        -:  310:    {
+        -:  311:      int remain_len;
+        -:  312:      remain_len = pstr->len - rawbuf_idx;
+        -:  313:      prev_st = pstr->cur_state;
+        -:  314:      mbclen = mbrtowc (&wc, (const char *) pstr->raw_mbs + rawbuf_idx,
+        -:  315:			remain_len, &pstr->cur_state);
+        -:  316:      if (BE (mbclen == (size_t) -2 || mbclen == (size_t) -1 || mbclen == 0, 0))
+        -:  317:	{
+        -:  318:	  /* We treat these cases as a singlebyte character.  */
+        -:  319:	  mbclen = 1;
+        -:  320:	  pstr->cur_state = prev_st;
+        -:  321:	}
+        -:  322:      /* Then proceed the next character.  */
+        -:  323:      rawbuf_idx += mbclen;
+        -:  324:    }
+        -:  325:  *last_wc = (wint_t) wc;
+        -:  326:  return rawbuf_idx;
+        -:  327:}
+        -:  328:#endif /* RE_ENABLE_I18N  */
+        -:  329:
+        -:  330:/* Build the buffer PSTR->MBS, and apply the translation if we need.
+        -:  331:   This function is used in case of REG_ICASE.  */
+        -:  332:
+        -:  333:static void
+function build_upper_buffer called 0 returned 0% blocks executed 0%
+    #####:  334:build_upper_buffer (pstr)
+        -:  335:     re_string_t *pstr;
+        -:  336:{
+        -:  337:  int char_idx, end_idx;
+    #####:  338:  end_idx = (pstr->bufs_len > pstr->len) ? pstr->len : pstr->bufs_len;
+        -:  339:
+    #####:  340:  for (char_idx = pstr->valid_len; char_idx < end_idx; ++char_idx)
+branch  0 never executed
+branch  1 never executed
+        -:  341:    {
+    #####:  342:      int ch = pstr->raw_mbs[pstr->raw_mbs_idx + char_idx];
+    #####:  343:      if (pstr->trans != NULL)
+branch  0 never executed
+branch  1 never executed
+        -:  344:	{
+    #####:  345:	  ch =  pstr->trans[ch];
+    #####:  346:	  pstr->mbs_case[char_idx] = ch;
+        -:  347:	}
+    #####:  348:      if (islower (ch))
+branch  0 never executed
+branch  1 never executed
+    #####:  349:	pstr->mbs[char_idx] = toupper (ch);
+        -:  350:      else
+    #####:  351:	pstr->mbs[char_idx] = ch;
+        -:  352:    }
+    #####:  353:  pstr->valid_len = char_idx;
+    #####:  354:}
+        -:  355:
+        -:  356:/* Apply TRANS to the buffer in PSTR.  */
+        -:  357:
+        -:  358:static void
+function re_string_translate_buffer called 0 returned 0% blocks executed 0%
+    #####:  359:re_string_translate_buffer (pstr)
+        -:  360:     re_string_t *pstr;
+        -:  361:{
+        -:  362:  int buf_idx, end_idx;
+    #####:  363:  end_idx = (pstr->bufs_len > pstr->len) ? pstr->len : pstr->bufs_len;
+        -:  364:
+    #####:  365:  for (buf_idx = pstr->valid_len; buf_idx < end_idx; ++buf_idx)
+branch  0 never executed
+branch  1 never executed
+        -:  366:    {
+    #####:  367:      int ch = pstr->raw_mbs[pstr->raw_mbs_idx + buf_idx];
+    #####:  368:      pstr->mbs_case[buf_idx] = pstr->trans[ch];
+        -:  369:    }
+        -:  370:
+    #####:  371:  pstr->valid_len = buf_idx;
+    #####:  372:}
+        -:  373:
+        -:  374:/* This function re-construct the buffers.
+        -:  375:   Concretely, convert to wide character in case of MB_CUR_MAX > 1,
+        -:  376:   convert to upper case in case of REG_ICASE, apply translation.  */
+        -:  377:
+        -:  378:static reg_errcode_t
+function re_string_reconstruct called 676465 returned 100% blocks executed 58%
+   676465:  379:re_string_reconstruct (pstr, idx, eflags, newline)
+        -:  380:     re_string_t *pstr;
+        -:  381:     int idx, eflags, newline;
+        -:  382:{
+   676465:  383:  int offset = idx - pstr->raw_mbs_idx;
+   676465:  384:  if (offset < 0)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 676465
+        -:  385:    {
+        -:  386:      /* Reset buffer.  */
+        -:  387:#ifdef RE_ENABLE_I18N
+        -:  388:      if (MB_CUR_MAX > 1)
+        -:  389:	memset (&pstr->cur_state, '\0', sizeof (mbstate_t));
+        -:  390:#endif /* RE_ENABLE_I18N */
+    #####:  391:      pstr->len += pstr->raw_mbs_idx;
+    #####:  392:      pstr->stop += pstr->raw_mbs_idx;
+    #####:  393:      pstr->valid_len = pstr->raw_mbs_idx = 0;
+    #####:  394:      pstr->tip_context = ((eflags & REG_NOTBOL) ? CONTEXT_BEGBUF
+    #####:  395:			   : CONTEXT_NEWLINE | CONTEXT_BEGBUF);
+branch  0 never executed
+branch  1 never executed
+    #####:  396:      if (!MBS_CASE_ALLOCATED (pstr))
+branch  0 never executed
+branch  1 never executed
+    #####:  397:	pstr->mbs_case = (unsigned char *) pstr->raw_mbs;
+    #####:  398:      if (!MBS_ALLOCATED (pstr) && !MBS_CASE_ALLOCATED (pstr))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  399:	pstr->mbs = (unsigned char *) pstr->raw_mbs;
+    #####:  400:      offset = idx;
+        -:  401:    }
+        -:  402:
+   676465:  403:  if (offset != 0)
+branch  0 taken 629997 (fallthrough)
+branch  1 taken 46468
+        -:  404:    {
+        -:  405:      /* Are the characters which are already checked remain?  */
+   629997:  406:      if (offset < pstr->valid_len)
+branch  0 taken 601876 (fallthrough)
+branch  1 taken 28121
+        -:  407:	{
+        -:  408:	  /* Yes, move them to the front of the buffer.  */
+   601876:  409:	  pstr->tip_context = re_string_context_at (pstr, offset - 1, eflags,
+call    0 returned 601876
+        -:  410:						    newline);
+        -:  411:#ifdef RE_ENABLE_I18N
+        -:  412:	  if (MB_CUR_MAX > 1)
+        -:  413:	    memmove (pstr->wcs, pstr->wcs + offset,
+        -:  414:		     (pstr->valid_len - offset) * sizeof (wint_t));
+        -:  415:#endif /* RE_ENABLE_I18N */
+   601876:  416:	  if (MBS_ALLOCATED (pstr))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 601876
+    #####:  417:	    memmove (pstr->mbs, pstr->mbs + offset,
+    #####:  418:		     pstr->valid_len - offset);
+   601876:  419:	  if (MBS_CASE_ALLOCATED (pstr))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 601876
+    #####:  420:	    memmove (pstr->mbs_case, pstr->mbs_case + offset,
+    #####:  421:		     pstr->valid_len - offset);
+   601876:  422:	  pstr->valid_len -= offset;
+        -:  423:#if DEBUG
+        -:  424:	  assert (pstr->valid_len > 0);
+        -:  425:#endif
+        -:  426:	}
+        -:  427:      else
+        -:  428:	{
+        -:  429:	  /* No, skip all characters until IDX.  */
+    28121:  430:	  pstr->valid_len = 0;
+        -:  431:#ifdef RE_ENABLE_I18N
+        -:  432:	  if (MB_CUR_MAX > 1)
+        -:  433:	    {
+        -:  434:	      int wcs_idx;
+        -:  435:	      wint_t wc;
+        -:  436:	      pstr->valid_len = re_string_skip_chars (pstr, idx, &wc) - idx;
+        -:  437:	      for (wcs_idx = 0; wcs_idx < pstr->valid_len; ++wcs_idx)
+        -:  438:		pstr->wcs[wcs_idx] = WEOF;
+        -:  439:	      if (pstr->trans && wc <= 0xff)
+        -:  440:		wc = pstr->trans[wc];
+        -:  441:	      pstr->tip_context = (IS_WIDE_WORD_CHAR (wc) ? CONTEXT_WORD
+        -:  442:				   : ((newline && IS_WIDE_NEWLINE (wc))
+        -:  443:				      ? CONTEXT_NEWLINE : 0));
+        -:  444:	    }
+        -:  445:	  else
+        -:  446:#endif /* RE_ENABLE_I18N */
+        -:  447:	    {
+    28121:  448:	      int c = pstr->raw_mbs[pstr->raw_mbs_idx + offset - 1];
+    28121:  449:	      if (pstr->trans)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 28121
+    #####:  450:		c = pstr->trans[c];
+    34977:  451:	      pstr->tip_context = (IS_WORD_CHAR (c) ? CONTEXT_WORD
+branch  0 taken 6856 (fallthrough)
+branch  1 taken 0
+   34977*:  452:				   : ((newline && IS_NEWLINE (c))
+branch  0 taken 6856 (fallthrough)
+branch  1 taken 21265
+branch  2 taken 0 (fallthrough)
+branch  3 taken 6856
+branch  4 never executed
+branch  5 never executed
+        -:  453:				      ? CONTEXT_NEWLINE : 0));
+        -:  454:	    }
+        -:  455:	}
+   629997:  456:      if (!MBS_CASE_ALLOCATED (pstr))
+branch  0 taken 629997 (fallthrough)
+branch  1 taken 0
+        -:  457:	{
+   629997:  458:	  pstr->mbs_case += offset;
+        -:  459:	  /* In case of !MBS_ALLOCATED && !MBS_CASE_ALLOCATED.  */
+   629997:  460:	  if (!MBS_ALLOCATED (pstr))
+branch  0 taken 629997 (fallthrough)
+branch  1 taken 0
+   629997:  461:	    pstr->mbs += offset;
+        -:  462:	}
+        -:  463:    }
+   676465:  464:  pstr->raw_mbs_idx = idx;
+   676465:  465:  pstr->len -= offset;
+   676465:  466:  pstr->stop -= offset;
+        -:  467:
+        -:  468:  /* Then build the buffers.  */
+        -:  469:#ifdef RE_ENABLE_I18N
+        -:  470:  if (MB_CUR_MAX > 1)
+        -:  471:    {
+        -:  472:      if (pstr->icase)
+        -:  473:	build_wcs_upper_buffer (pstr);
+        -:  474:      else
+        -:  475:	build_wcs_buffer (pstr);
+        -:  476:    }
+        -:  477:  else
+        -:  478:#endif /* RE_ENABLE_I18N */
+        -:  479:    {
+   676465:  480:      if (pstr->icase)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 676465
+    #####:  481:	build_upper_buffer (pstr);
+call    0 never executed
+   676465:  482:      else if (pstr->trans != NULL)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 676465
+    #####:  483:	re_string_translate_buffer (pstr);
+call    0 never executed
+        -:  484:    }
+   676465:  485:  pstr->cur_idx = 0;
+        -:  486:
+   676465:  487:  return REG_NOERROR;
+        -:  488:}
+        -:  489:
+        -:  490:static void
+function re_string_destruct called 49682 returned 100% blocks executed 60%
+    49682:  491:re_string_destruct (pstr)
+        -:  492:     re_string_t *pstr;
+        -:  493:{
+        -:  494:#ifdef RE_ENABLE_I18N
+        -:  495:  re_free (pstr->wcs);
+        -:  496:#endif /* RE_ENABLE_I18N  */
+    49682:  497:  if (MBS_ALLOCATED (pstr))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 49682
+    #####:  498:    re_free (pstr->mbs);
+    49682:  499:  if (MBS_CASE_ALLOCATED (pstr))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 49682
+    #####:  500:    re_free (pstr->mbs_case);
+    49682:  501:}
+        -:  502:
+        -:  503:/* Return the context at IDX in INPUT.  */
+        -:  504:
+        -:  505:static unsigned int
+function re_string_context_at called 844952 returned 100% blocks executed 82%
+   844952:  506:re_string_context_at (input, idx, eflags, newline_anchor)
+        -:  507:     const re_string_t *input;
+        -:  508:     int idx, eflags, newline_anchor;
+        -:  509:{
+        -:  510:  int c;
+   844952:  511:  if (idx < 0 || idx == input->len)
+branch  0 taken 675943 (fallthrough)
+branch  1 taken 169009
+branch  2 taken 5178 (fallthrough)
+branch  3 taken 670765
+        -:  512:    {
+   174187:  513:      if (idx < 0)
+branch  0 taken 169009 (fallthrough)
+branch  1 taken 5178
+        -:  514:	/* In this case, we use the value stored in input->tip_context,
+        -:  515:	   since we can't know the character in input->mbs[-1] here.  */
+   169009:  516:	return input->tip_context;
+        -:  517:      else /* (idx == input->len) */
+     5178:  518:	return ((eflags & REG_NOTEOL) ? CONTEXT_ENDBUF
+    5178*:  519:		: CONTEXT_NEWLINE | CONTEXT_ENDBUF);
+branch  0 taken 0 (fallthrough)
+branch  1 taken 5178
+        -:  520:    }
+        -:  521:#ifdef RE_ENABLE_I18N
+        -:  522:  if (MB_CUR_MAX > 1)
+        -:  523:    {
+        -:  524:      wint_t wc;
+        -:  525:      int wc_idx = idx;
+        -:  526:      while(input->wcs[wc_idx] == WEOF)
+        -:  527:	{
+        -:  528:#ifdef DEBUG
+        -:  529:	  /* It must not happen.  */
+        -:  530:	  assert (wc_idx >= 0);
+        -:  531:#endif
+        -:  532:	  --wc_idx;
+        -:  533:	  if (wc_idx < 0)
+        -:  534:	    return input->tip_context;
+        -:  535:	}
+        -:  536:      wc = input->wcs[wc_idx];
+        -:  537:      if (IS_WIDE_WORD_CHAR (wc))
+        -:  538:	return CONTEXT_WORD;
+        -:  539:      return (newline_anchor && IS_WIDE_NEWLINE (wc)) ? CONTEXT_NEWLINE : 0;
+        -:  540:    }
+        -:  541:  else
+        -:  542:#endif
+        -:  543:    {
+   670765:  544:      c = re_string_byte_at (input, idx);
+   670765:  545:      if (IS_WORD_CHAR (c))
+branch  0 taken 152440 (fallthrough)
+branch  1 taken 518325
+branch  2 taken 221 (fallthrough)
+branch  3 taken 152219
+   518546:  546:	return CONTEXT_WORD;
+  152219*:  547:      return (newline_anchor && IS_NEWLINE (c)) ? CONTEXT_NEWLINE : 0;
+branch  0 taken 0 (fallthrough)
+branch  1 taken 152219
+branch  2 never executed
+branch  3 never executed
+        -:  548:    }
+        -:  549:}
+        -:  550:
+        -:  551:/* Functions for set operation.  */
+        -:  552:
+        -:  553:static reg_errcode_t
+function re_node_set_alloc called 5709 returned 100% blocks executed 75%
+     5709:  554:re_node_set_alloc (set, size)
+        -:  555:     re_node_set *set;
+        -:  556:     int size;
+        -:  557:{
+     5709:  558:  set->alloc = size;
+     5709:  559:  set->nelem = 0;
+     5709:  560:  set->elems = re_malloc (int, size);
+     5709:  561:  if (BE (set->elems == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 5709
+    #####:  562:    return REG_ESPACE;
+     5709:  563:  return REG_NOERROR;
+        -:  564:}
+        -:  565:
+        -:  566:static reg_errcode_t
+function re_node_set_init_1 called 6102 returned 100% blocks executed 75%
+     6102:  567:re_node_set_init_1 (set, elem)
+        -:  568:     re_node_set *set;
+        -:  569:     int elem;
+        -:  570:{
+     6102:  571:  set->alloc = 1;
+     6102:  572:  set->nelem = 1;
+     6102:  573:  set->elems = re_malloc (int, 1);
+     6102:  574:  if (BE (set->elems == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 6102
+    #####:  575:    return REG_ESPACE;
+     6102:  576:  set->elems[0] = elem;
+     6102:  577:  return REG_NOERROR;
+        -:  578:}
+        -:  579:
+        -:  580:static reg_errcode_t
+function re_node_set_init_2 called 132 returned 100% blocks executed 67%
+      132:  581:re_node_set_init_2 (set, elem1, elem2)
+        -:  582:     re_node_set *set;
+        -:  583:     int elem1, elem2;
+        -:  584:{
+      132:  585:  set->alloc = 2;
+      132:  586:  set->elems = re_malloc (int, 2);
+      132:  587:  if (BE (set->elems == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 132
+    #####:  588:    return REG_ESPACE;
+      132:  589:  if (elem1 == elem2)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 132
+        -:  590:    {
+    #####:  591:      set->nelem = 1;
+    #####:  592:      set->elems[0] = elem1;
+        -:  593:    }
+        -:  594:  else
+        -:  595:    {
+      132:  596:      set->nelem = 2;
+      132:  597:      if (elem1 < elem2)
+branch  0 taken 132 (fallthrough)
+branch  1 taken 0
+        -:  598:	{
+      132:  599:	  set->elems[0] = elem1;
+      132:  600:	  set->elems[1] = elem2;
+        -:  601:	}
+        -:  602:      else
+        -:  603:	{
+    #####:  604:	  set->elems[0] = elem2;
+    #####:  605:	  set->elems[1] = elem1;
+        -:  606:	}
+        -:  607:    }
+      132:  608:  return REG_NOERROR;
+        -:  609:}
+        -:  610:
+        -:  611:static reg_errcode_t
+function re_node_set_init_copy called 4968 returned 100% blocks executed 71%
+     4968:  612:re_node_set_init_copy (dest, src)
+        -:  613:     re_node_set *dest;
+        -:  614:     const re_node_set *src;
+        -:  615:{
+     4968:  616:  dest->nelem = src->nelem;
+     4968:  617:  if (src->nelem > 0)
+branch  0 taken 4968 (fallthrough)
+branch  1 taken 0
+        -:  618:    {
+     4968:  619:      dest->alloc = dest->nelem;
+     4968:  620:      dest->elems = re_malloc (int, dest->alloc);
+     4968:  621:      if (BE (dest->elems == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 4968
+    #####:  622:	return REG_ESPACE;
+     4968:  623:      memcpy (dest->elems, src->elems, src->nelem * sizeof (int));
+        -:  624:    }
+        -:  625:  else
+    #####:  626:    re_node_set_init_empty (dest);
+     4968:  627:  return REG_NOERROR;
+        -:  628:}
+        -:  629:
+        -:  630:/* Calculate the intersection of the sets SRC1 and SRC2. And merge it to
+        -:  631:   DEST. Return value indicate the error code or REG_NOERROR if succeeded.
+        -:  632:   Note: We assume dest->elems is NULL, when dest->alloc is 0.  */
+        -:  633:
+        -:  634:static reg_errcode_t
+function re_node_set_add_intersect called 203 returned 100% blocks executed 88%
+      203:  635:re_node_set_add_intersect (dest, src1, src2)
+        -:  636:     re_node_set *dest;
+        -:  637:     const re_node_set *src1, *src2;
+        -:  638:{
+        -:  639:  int i1, i2, id;
+      203:  640:  if (src1->nelem > 0 && src2->nelem > 0)
+branch  0 taken 203 (fallthrough)
+branch  1 taken 0
+branch  2 taken 203 (fallthrough)
+branch  3 taken 0
+        -:  641:    {
+      203:  642:      if (src1->nelem + src2->nelem + dest->nelem > dest->alloc)
+branch  0 taken 60 (fallthrough)
+branch  1 taken 143
+        -:  643:	{
+       60:  644:	  dest->alloc = src1->nelem + src2->nelem + dest->nelem;
+       60:  645:	  dest->elems = re_realloc (dest->elems, int, dest->alloc);
+       60:  646:	  if (BE (dest->elems == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 60
+    #####:  647:	    return REG_ESPACE;
+        -:  648:	}
+        -:  649:    }
+        -:  650:  else
+    #####:  651:    return REG_NOERROR;
+        -:  652:
+     1122:  653:  for (i1 = i2 = id = 0 ; i1 < src1->nelem && i2 < src2->nelem ;)
+branch  0 taken 1011 (fallthrough)
+branch  1 taken 111
+branch  2 taken 919
+branch  3 taken 92 (fallthrough)
+        -:  654:    {
+      919:  655:      if (src1->elems[i1] > src2->elems[i2])
+branch  0 taken 196 (fallthrough)
+branch  1 taken 723
+        -:  656:	{
+      196:  657:	  ++i2;
+      196:  658:	  continue;
+        -:  659:	}
+      723:  660:      if (src1->elems[i1] == src2->elems[i2])
+branch  0 taken 382 (fallthrough)
+branch  1 taken 341
+        -:  661:	{
+      382:  662:	  while (id < dest->nelem && dest->elems[id] < src2->elems[i2])
+branch  0 taken 290 (fallthrough)
+branch  1 taken 92
+branch  2 taken 0
+branch  3 taken 290 (fallthrough)
+    #####:  663:	    ++id;
+      382:  664:	  if (id < dest->nelem && dest->elems[id] == src2->elems[i2])
+branch  0 taken 290 (fallthrough)
+branch  1 taken 92
+branch  2 taken 203 (fallthrough)
+branch  3 taken 87
+      203:  665:	    ++id;
+        -:  666:	  else
+        -:  667:	    {
+      179:  668:	      memmove (dest->elems + id + 1, dest->elems + id,
+      179:  669:		       sizeof (int) * (dest->nelem - id));
+      179:  670:	      dest->elems[id++] = src2->elems[i2++];
+      179:  671:	      ++dest->nelem;
+        -:  672:	    }
+        -:  673:	}
+      723:  674:      ++i1;
+        -:  675:    }
+      203:  676:  return REG_NOERROR;
+        -:  677:}
+        -:  678:
+        -:  679:/* Calculate the union set of the sets SRC1 and SRC2. And store it to
+        -:  680:   DEST. Return value indicate the error code or REG_NOERROR if succeeded.  */
+        -:  681:
+        -:  682:static reg_errcode_t
+function re_node_set_init_union called 0 returned 0% blocks executed 0%
+    #####:  683:re_node_set_init_union (dest, src1, src2)
+        -:  684:     re_node_set *dest;
+        -:  685:     const re_node_set *src1, *src2;
+        -:  686:{
+        -:  687:  int i1, i2, id;
+    #####:  688:  if (src1 != NULL && src1->nelem > 0 && src2 != NULL && src2->nelem > 0)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+branch  4 never executed
+branch  5 never executed
+branch  6 never executed
+branch  7 never executed
+        -:  689:    {
+    #####:  690:      dest->alloc = src1->nelem + src2->nelem;
+    #####:  691:      dest->elems = re_malloc (int, dest->alloc);
+    #####:  692:      if (BE (dest->elems == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+    #####:  693:	return REG_ESPACE;
+        -:  694:    }
+        -:  695:  else
+        -:  696:    {
+    #####:  697:      if (src1 != NULL && src1->nelem > 0)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  698:	return re_node_set_init_copy (dest, src1);
+call    0 never executed
+    #####:  699:      else if (src2 != NULL && src2->nelem > 0)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  700:	return re_node_set_init_copy (dest, src2);
+call    0 never executed
+        -:  701:      else
+    #####:  702:	re_node_set_init_empty (dest);
+    #####:  703:      return REG_NOERROR;
+        -:  704:    }
+    #####:  705:  for (i1 = i2 = id = 0 ; i1 < src1->nelem && i2 < src2->nelem ;)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -:  706:    {
+    #####:  707:      if (src1->elems[i1] > src2->elems[i2])
+branch  0 never executed
+branch  1 never executed
+        -:  708:	{
+    #####:  709:	  dest->elems[id++] = src2->elems[i2++];
+    #####:  710:	  continue;
+        -:  711:	}
+    #####:  712:      if (src1->elems[i1] == src2->elems[i2])
+branch  0 never executed
+branch  1 never executed
+    #####:  713:	++i2;
+    #####:  714:      dest->elems[id++] = src1->elems[i1++];
+        -:  715:    }
+    #####:  716:  if (i1 < src1->nelem)
+branch  0 never executed
+branch  1 never executed
+        -:  717:    {
+    #####:  718:      memcpy (dest->elems + id, src1->elems + i1,
+    #####:  719:	     (src1->nelem - i1) * sizeof (int));
+    #####:  720:      id += src1->nelem - i1;
+        -:  721:    }
+    #####:  722:  else if (i2 < src2->nelem)
+branch  0 never executed
+branch  1 never executed
+        -:  723:    {
+    #####:  724:      memcpy (dest->elems + id, src2->elems + i2,
+    #####:  725:	     (src2->nelem - i2) * sizeof (int));
+    #####:  726:      id += src2->nelem - i2;
+        -:  727:    }
+    #####:  728:  dest->nelem = id;
+    #####:  729:  return REG_NOERROR;
+        -:  730:}
+        -:  731:
+        -:  732:/* Calculate the union set of the sets DEST and SRC. And store it to
+        -:  733:   DEST. Return value indicate the error code or REG_NOERROR if succeeded.  */
+        -:  734:
+        -:  735:static reg_errcode_t
+function re_node_set_merge called 3095 returned 100% blocks executed 75%
+     3095:  736:re_node_set_merge (dest, src)
+        -:  737:     re_node_set *dest;
+        -:  738:     const re_node_set *src;
+        -:  739:{
+        -:  740:  int si, di;
+     3095:  741:  if (src == NULL || src->nelem == 0)
+branch  0 taken 3095 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 3095
+    #####:  742:    return REG_NOERROR;
+     3095:  743:  if (dest->alloc < src->nelem + dest->nelem)
+branch  0 taken 215 (fallthrough)
+branch  1 taken 2880
+        -:  744:    {
+        -:  745:      int *new_buffer;
+      215:  746:      dest->alloc = 2 * (src->nelem + dest->alloc);
+      215:  747:      new_buffer = re_realloc (dest->elems, int, dest->alloc);
+      215:  748:      if (BE (new_buffer == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 215
+    #####:  749:	return REG_ESPACE;
+      215:  750:      dest->elems = new_buffer;
+        -:  751:    }
+        -:  752:
+     3186:  753:  for (si = 0, di = 0 ; si < src->nelem && di < dest->nelem ;)
+branch  0 taken 3156 (fallthrough)
+branch  1 taken 30
+branch  2 taken 438
+branch  3 taken 2718 (fallthrough)
+        -:  754:    {
+      438:  755:      int cp_from, ncp, mid, right, src_elem = src->elems[si];
+        -:  756:      /* Binary search the spot we will add the new element.  */
+      438:  757:      right = dest->nelem;
+     1205:  758:      while (di < right)
+branch  0 taken 767
+branch  1 taken 438 (fallthrough)
+        -:  759:	{
+      767:  760:	  mid = (di + right) / 2;
+      767:  761:	  if (dest->elems[mid] < src_elem)
+branch  0 taken 643 (fallthrough)
+branch  1 taken 124
+      643:  762:	    di = mid + 1;
+        -:  763:	  else
+      124:  764:	    right = mid;
+        -:  765:	}
+      438:  766:      if (di >= dest->nelem)
+branch  0 taken 347 (fallthrough)
+branch  1 taken 91
+      347:  767:	break;
+        -:  768:
+       91:  769:      if (dest->elems[di] == src_elem)
+branch  0 taken 91 (fallthrough)
+branch  1 taken 0
+        -:  770:	{
+        -:  771:	  /* Skip since, DEST already has the element.  */
+       91:  772:	  ++di;
+       91:  773:	  ++si;
+       91:  774:	  continue;
+        -:  775:	}
+        -:  776:
+        -:  777:      /* Skip the src elements which are less than dest->elems[di].  */
+    #####:  778:      cp_from = si;
+    #####:  779:      while (si < src->nelem && src->elems[si] < dest->elems[di])
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  780:	++si;
+        -:  781:      /* Copy these src elements.  */
+    #####:  782:      ncp = si - cp_from;
+    #####:  783:      memmove (dest->elems + di + ncp, dest->elems + di,
+    #####:  784:	       sizeof (int) * (dest->nelem - di));
+    #####:  785:      memcpy (dest->elems + di, src->elems + cp_from,
+        -:  786:	      sizeof (int) * ncp);
+        -:  787:      /* Update counters.  */
+    #####:  788:      di += ncp;
+    #####:  789:      dest->nelem += ncp;
+        -:  790:    }
+        -:  791:
+        -:  792:  /* Copy remaining src elements.  */
+     3095:  793:  if (si < src->nelem)
+branch  0 taken 3065 (fallthrough)
+branch  1 taken 30
+        -:  794:    {
+     3065:  795:      memcpy (dest->elems + di, src->elems + si,
+     3065:  796:	      sizeof (int) * (src->nelem - si));
+     3065:  797:      dest->nelem += src->nelem - si;
+        -:  798:    }
+     3095:  799:  return REG_NOERROR;
+        -:  800:}
+        -:  801:
+        -:  802:/* Insert the new element ELEM to the re_node_set* SET.
+        -:  803:   return 0 if SET already has ELEM,
+        -:  804:   return -1 if an error is occured, return 1 otherwise.  */
+        -:  805:
+        -:  806:static int
+function re_node_set_insert called 8772 returned 100% blocks executed 91%
+     8772:  807:re_node_set_insert (set, elem)
+        -:  808:     re_node_set *set;
+        -:  809:     int elem;
+        -:  810:{
+        -:  811:  int idx, right, mid;
+        -:  812:  /* In case of the set is empty.  */
+     8772:  813:  if (set->elems == NULL || set->alloc == 0)
+branch  0 taken 5108 (fallthrough)
+branch  1 taken 3664
+branch  2 taken 0 (fallthrough)
+branch  3 taken 5108
+        -:  814:    {
+     3664:  815:      if (BE (re_node_set_init_1 (set, elem) == REG_NOERROR, 1))
+call    0 returned 3664
+branch  1 taken 3664 (fallthrough)
+branch  2 taken 0
+     3664:  816:	return 1;
+        -:  817:      else
+    #####:  818:	return -1;
+        -:  819:    }
+        -:  820:
+        -:  821:  /* Binary search the spot we will add the new element.  */
+     5108:  822:  idx = 0;
+     5108:  823:  right = set->nelem;
+     6793:  824:  while (idx < right)
+branch  0 taken 1685
+branch  1 taken 5108 (fallthrough)
+        -:  825:    {
+     1685:  826:      mid = (idx + right) / 2;
+     1685:  827:      if (set->elems[mid] < elem)
+branch  0 taken 1137 (fallthrough)
+branch  1 taken 548
+     1137:  828:	idx = mid + 1;
+        -:  829:      else
+      548:  830:	right = mid;
+        -:  831:    }
+        -:  832:
+        -:  833:  /* Realloc if we need.  */
+     5108:  834:  if (set->alloc < set->nelem + 1)
+branch  0 taken 1002 (fallthrough)
+branch  1 taken 4106
+        -:  835:    {
+        -:  836:      int *new_array;
+     1002:  837:      set->alloc = set->alloc * 2;
+     1002:  838:      new_array = re_malloc (int, set->alloc);
+     1002:  839:      if (BE (new_array == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1002
+    #####:  840:	return -1;
+        -:  841:      /* Copy the elements they are followed by the new element.  */
+     1002:  842:      if (idx > 0)
+branch  0 taken 943 (fallthrough)
+branch  1 taken 59
+      943:  843:	memcpy (new_array, set->elems, sizeof (int) * (idx));
+        -:  844:      /* Copy the elements which follows the new element.  */
+     1002:  845:      if (set->nelem - idx > 0)
+branch  0 taken 72 (fallthrough)
+branch  1 taken 930
+       72:  846:	memcpy (new_array + idx + 1, set->elems + idx,
+       72:  847:		sizeof (int) * (set->nelem - idx));
+     1002:  848:      re_free (set->elems);
+     1002:  849:      set->elems = new_array;
+        -:  850:    }
+        -:  851:  else
+        -:  852:    {
+        -:  853:      /* Move the elements which follows the new element.  */
+     4106:  854:      if (set->nelem - idx > 0)
+branch  0 taken 405 (fallthrough)
+branch  1 taken 3701
+      405:  855:	memmove (set->elems + idx + 1, set->elems + idx,
+      405:  856:		 sizeof (int) * (set->nelem - idx));
+        -:  857:    }
+        -:  858:  /* Insert the new element.  */
+     5108:  859:  set->elems[idx] = elem;
+     5108:  860:  ++set->nelem;
+     5108:  861:  return 1;
+        -:  862:}
+        -:  863:
+        -:  864:/* Compare two node sets SET1 and SET2.
+        -:  865:   return 1 if SET1 and SET2 are equivalent, retrun 0 otherwise.  */
+        -:  866:
+        -:  867:static int
+function re_node_set_compare called 423 returned 100% blocks executed 91%
+      423:  868:re_node_set_compare (set1, set2)
+        -:  869:     const re_node_set *set1, *set2;
+        -:  870:{
+        -:  871:  int i;
+      423:  872:  if (set1 == NULL || set2 == NULL || set1->nelem != set2->nelem)
+branch  0 taken 423 (fallthrough)
+branch  1 taken 0
+branch  2 taken 423 (fallthrough)
+branch  3 taken 0
+branch  4 taken 59 (fallthrough)
+branch  5 taken 364
+       59:  873:    return 0;
+     1581:  874:  for (i = 0 ; i < set1->nelem ; i++)
+branch  0 taken 1217
+branch  1 taken 364 (fallthrough)
+     1217:  875:    if (set1->elems[i] != set2->elems[i])
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1217
+    #####:  876:      return 0;
+      364:  877:  return 1;
+        -:  878:}
+        -:  879:
+        -:  880:/* Return (idx + 1) if SET contains the element ELEM, return 0 otherwise.  */
+        -:  881:
+        -:  882:static int
+function re_node_set_contains called 552 returned 100% blocks executed 92%
+      552:  883:re_node_set_contains (set, elem)
+        -:  884:     const re_node_set *set;
+        -:  885:     int elem;
+        -:  886:{
+        -:  887:  int idx, right, mid;
+      552:  888:  if (set->nelem <= 0)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 552
+    #####:  889:    return 0;
+        -:  890:
+        -:  891:  /* Binary search the element.  */
+      552:  892:  idx = 0;
+      552:  893:  right = set->nelem - 1;
+     1127:  894:  while (idx < right)
+branch  0 taken 575
+branch  1 taken 552 (fallthrough)
+        -:  895:    {
+      575:  896:      mid = (idx + right) / 2;
+      575:  897:      if (set->elems[mid] < elem)
+branch  0 taken 259 (fallthrough)
+branch  1 taken 316
+      259:  898:	idx = mid + 1;
+        -:  899:      else
+      316:  900:	right = mid;
+        -:  901:    }
+      552:  902:  return set->elems[idx] == elem ? idx + 1 : 0;
+branch  0 taken 353 (fallthrough)
+branch  1 taken 199
+        -:  903:}
+        -:  904:
+        -:  905:static void
+function re_node_set_remove_at called 608 returned 100% blocks executed 86%
+      608:  906:re_node_set_remove_at (set, idx)
+        -:  907:     re_node_set *set;
+        -:  908:     int idx;
+        -:  909:{
+      608:  910:  if (idx < 0 || idx >= set->nelem)
+branch  0 taken 608 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 608
+    #####:  911:    return;
+      608:  912:  if (idx < set->nelem - 1)
+branch  0 taken 304 (fallthrough)
+branch  1 taken 304
+      304:  913:    memmove (set->elems + idx, set->elems + idx + 1,
+      304:  914:	     sizeof (int) * (set->nelem - idx - 1));
+      608:  915:  --set->nelem;
+        -:  916:}
+        -:  917:
+        -:  918:
+        -:  919:/* Add the token TOKEN to dfa->nodes, and return the index of the token.
+        -:  920:   Or return -1, if an error will be occured.  */
+        -:  921:
+        -:  922:static int
+function re_dfa_add_node called 3588 returned 100% blocks executed 78%
+     3588:  923:re_dfa_add_node (dfa, token, mode)
+        -:  924:     re_dfa_t *dfa;
+        -:  925:     re_token_t token;
+        -:  926:     int mode;
+        -:  927:{
+     3588:  928:  if (dfa->nodes_len >= dfa->nodes_alloc)
+branch  0 taken 154 (fallthrough)
+branch  1 taken 3434
+        -:  929:    {
+        -:  930:      re_token_t *new_array;
+      154:  931:      dfa->nodes_alloc *= 2;
+      154:  932:      new_array = re_realloc (dfa->nodes, re_token_t, dfa->nodes_alloc);
+      154:  933:      if (BE (new_array == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 154
+    #####:  934:	return -1;
+        -:  935:      else
+      154:  936:	dfa->nodes = new_array;
+      154:  937:      if (mode)
+branch  0 taken 154 (fallthrough)
+branch  1 taken 0
+        -:  938:	{
+        -:  939:	  int *new_nexts;
+        -:  940:	  re_node_set *new_edests, *new_eclosures, *new_inveclosures;
+        -:  941:
+      154:  942:	  new_nexts = re_realloc (dfa->nexts, int, dfa->nodes_alloc);
+      154:  943:	  new_edests = re_realloc (dfa->edests, re_node_set, dfa->nodes_alloc);
+      154:  944:	  new_eclosures = re_realloc (dfa->eclosures, re_node_set,
+        -:  945:				      dfa->nodes_alloc);
+      154:  946:	  new_inveclosures = re_realloc (dfa->inveclosures, re_node_set,
+        -:  947:					 dfa->nodes_alloc);
+     154*:  948:	  if (BE (new_nexts == NULL || new_edests == NULL
+branch  0 taken 154 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 154
+branch  4 taken 154 (fallthrough)
+branch  5 taken 0
+branch  6 taken 0 (fallthrough)
+branch  7 taken 154
+branch  8 taken 154 (fallthrough)
+branch  9 taken 0
+branch 10 taken 0 (fallthrough)
+branch 11 taken 154
+        -:  949:		  || new_eclosures == NULL || new_inveclosures == NULL, 0))
+    #####:  950:	    return -1;
+      154:  951:	  dfa->nexts = new_nexts;
+      154:  952:	  dfa->edests = new_edests;
+      154:  953:	  dfa->eclosures = new_eclosures;
+      154:  954:	  dfa->inveclosures = new_inveclosures;
+        -:  955:	}
+        -:  956:    }
+     3588:  957:  dfa->nodes[dfa->nodes_len] = token;
+     3588:  958:  dfa->nodes[dfa->nodes_len].duplicated = 0;
+     3588:  959:  dfa->nodes[dfa->nodes_len].constraint = 0;
+     3588:  960:  return dfa->nodes_len++;
+        -:  961:}
+        -:  962:
+        -:  963:static unsigned int inline
+function calc_state_hash called 3628 returned 100% blocks executed 100%
+     3628:  964:calc_state_hash (nodes, context)
+        -:  965:     const re_node_set *nodes;
+        -:  966:     unsigned int context;
+        -:  967:{
+     3628:  968:  unsigned int hash = nodes->nelem + context;
+        -:  969:  int i;
+     9779:  970:  for (i = 0 ; i < nodes->nelem ; i++)
+branch  0 taken 6151
+branch  1 taken 3628 (fallthrough)
+     6151:  971:    hash += nodes->elems[i];
+     3628:  972:  return hash;
+        -:  973:}
+        -:  974:
+        -:  975:/* Search for the state whose node_set is equivalent to NODES.
+        -:  976:   Return the pointer to the state, if we found it in the DFA.
+        -:  977:   Otherwise create the new one and return it.  In case of an error
+        -:  978:   return NULL and set the error code in ERR.
+        -:  979:   Note: - We assume NULL as the invalid state, then it is possible that
+        -:  980:	   return value is NULL and ERR is REG_NOERROR.
+        -:  981:	 - We never return non-NULL value in case of any errors, it is for
+        -:  982:	   optimization.  */
+        -:  983:
+        -:  984:static re_dfastate_t*
+function re_acquire_state called 203 returned 100% blocks executed 88%
+      203:  985:re_acquire_state (err, dfa, nodes)
+        -:  986:     reg_errcode_t *err;
+        -:  987:     re_dfa_t *dfa;
+        -:  988:     const re_node_set *nodes;
+        -:  989:{
+        -:  990:  unsigned int hash;
+        -:  991:  re_dfastate_t *new_state;
+        -:  992:  struct re_state_table_entry *spot;
+        -:  993:  int i;
+      203:  994:  if (BE (nodes->nelem == 0, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 203
+        -:  995:    {
+    #####:  996:      *err = REG_NOERROR;
+    #####:  997:      return NULL;
+        -:  998:    }
+      203:  999:  hash = calc_state_hash (nodes, 0);
+call    0 returned 203
+      203: 1000:  spot = dfa->state_table + (hash & dfa->state_hash_mask);
+        -: 1001:
+      288: 1002:  for (i = 0 ; i < spot->num ; i++)
+branch  0 taken 244
+branch  1 taken 44 (fallthrough)
+        -: 1003:    {
+      244: 1004:      re_dfastate_t *state = spot->array[i];
+      244: 1005:      if (hash != state->hash)
+branch  0 taken 26 (fallthrough)
+branch  1 taken 218
+       26: 1006:	continue;
+      218: 1007:      if (re_node_set_compare (&state->nodes, nodes))
+call    0 returned 218
+branch  1 taken 159 (fallthrough)
+branch  2 taken 59
+      159: 1008:	return state;
+        -: 1009:    }
+        -: 1010:
+        -: 1011:  /* There are no appropriate state in the dfa, create the new one.  */
+       44: 1012:  new_state = create_ci_newstate (dfa, nodes, hash);
+call    0 returned 44
+       44: 1013:  if (BE (new_state != NULL, 1))
+branch  0 taken 44 (fallthrough)
+branch  1 taken 0
+       44: 1014:    return new_state;
+        -: 1015:  else
+        -: 1016:    {
+    #####: 1017:      *err = REG_ESPACE;
+    #####: 1018:      return NULL;
+        -: 1019:    }
+        -: 1020:}
+        -: 1021:
+        -: 1022:/* Search for the state whose node_set is equivalent to NODES and
+        -: 1023:   whose context is equivalent to CONTEXT.
+        -: 1024:   Return the pointer to the state, if we found it in the DFA.
+        -: 1025:   Otherwise create the new one and return it.  In case of an error
+        -: 1026:   return NULL and set the error code in ERR.
+        -: 1027:   Note: - We assume NULL as the invalid state, then it is possible that
+        -: 1028:	   return value is NULL and ERR is REG_NOERROR.
+        -: 1029:	 - We never return non-NULL value in case of any errors, it is for
+        -: 1030:	   optimization.  */
+        -: 1031:
+        -: 1032:static re_dfastate_t*
+function re_acquire_state_context called 3425 returned 100% blocks executed 88%
+     3425: 1033:re_acquire_state_context (err, dfa, nodes, context)
+        -: 1034:     reg_errcode_t *err;
+        -: 1035:     re_dfa_t *dfa;
+        -: 1036:     const re_node_set *nodes;
+        -: 1037:     unsigned int context;
+        -: 1038:{
+        -: 1039:  unsigned int hash;
+        -: 1040:  re_dfastate_t *new_state;
+        -: 1041:  struct re_state_table_entry *spot;
+        -: 1042:  int i;
+     3425: 1043:  if (nodes->nelem == 0)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3425
+        -: 1044:    {
+    #####: 1045:      *err = REG_NOERROR;
+    #####: 1046:      return NULL;
+        -: 1047:    }
+     3425: 1048:  hash = calc_state_hash (nodes, context);
+call    0 returned 3425
+     3425: 1049:  spot = dfa->state_table + (hash & dfa->state_hash_mask);
+        -: 1050:
+     3691: 1051:  for (i = 0 ; i < spot->num ; i++)
+branch  0 taken 471
+branch  1 taken 3220 (fallthrough)
+        -: 1052:    {
+      471: 1053:      re_dfastate_t *state = spot->array[i];
+      471: 1054:      if (hash != state->hash)
+branch  0 taken 266 (fallthrough)
+branch  1 taken 205
+      266: 1055:	continue;
+      205: 1056:      if (re_node_set_compare (state->entrance_nodes, nodes)
+call    0 returned 205
+branch  1 taken 205 (fallthrough)
+branch  2 taken 0
+      205: 1057:	  && state->context == context)
+branch  0 taken 205 (fallthrough)
+branch  1 taken 0
+      205: 1058:	return state;
+        -: 1059:    }
+        -: 1060:  /* There are no appropriate state in `dfa', create the new one.  */
+     3220: 1061:  new_state = create_cd_newstate (dfa, nodes, context, hash);
+call    0 returned 3220
+     3220: 1062:  if (BE (new_state != NULL, 1))
+branch  0 taken 3220 (fallthrough)
+branch  1 taken 0
+     3220: 1063:    return new_state;
+        -: 1064:  else
+        -: 1065:    {
+    #####: 1066:      *err = REG_ESPACE;
+    #####: 1067:      return NULL;
+        -: 1068:    }
+        -: 1069:}
+        -: 1070:
+        -: 1071:/* Allocate memory for DFA state and initialize common properties.
+        -: 1072:   Return the new state if succeeded, otherwise return NULL.  */
+        -: 1073:
+        -: 1074:static re_dfastate_t *
+function create_newstate_common called 3264 returned 100% blocks executed 71%
+     3264: 1075:create_newstate_common (dfa, nodes, hash)
+        -: 1076:     re_dfa_t *dfa;
+        -: 1077:     const re_node_set *nodes;
+        -: 1078:     unsigned int hash;
+        -: 1079:{
+        -: 1080:  re_dfastate_t *newstate;
+        -: 1081:  reg_errcode_t err;
+     3264: 1082:  newstate = (re_dfastate_t *) calloc (sizeof (re_dfastate_t), 1);
+     3264: 1083:  if (BE (newstate == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3264
+    #####: 1084:    return NULL;
+     3264: 1085:  err = re_node_set_init_copy (&newstate->nodes, nodes);
+call    0 returned 3264
+     3264: 1086:  if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3264
+        -: 1087:    {
+    #####: 1088:      re_free (newstate);
+    #####: 1089:      return NULL;
+        -: 1090:    }
+     3264: 1091:  newstate->trtable = NULL;
+     3264: 1092:  newstate->trtable_search = NULL;
+     3264: 1093:  newstate->hash = hash;
+     3264: 1094:  return newstate;
+        -: 1095:}
+        -: 1096:
+        -: 1097:/* Store the new state NEWSTATE whose hash value is HASH in appropriate
+        -: 1098:   position.  Return value indicate the error code if failed.  */
+        -: 1099:
+        -: 1100:static reg_errcode_t
+function register_state called 3264 returned 100% blocks executed 83%
+     3264: 1101:register_state (dfa, newstate, hash)
+        -: 1102:     re_dfa_t *dfa;
+        -: 1103:     re_dfastate_t *newstate;
+        -: 1104:     unsigned int hash;
+        -: 1105:{
+        -: 1106:  struct re_state_table_entry *spot;
+     3264: 1107:  spot = dfa->state_table + (hash & dfa->state_hash_mask);
+        -: 1108:
+     3264: 1109:  if (spot->alloc <= spot->num)
+branch  0 taken 3065 (fallthrough)
+branch  1 taken 199
+        -: 1110:    {
+        -: 1111:      re_dfastate_t **new_array;
+     3065: 1112:      spot->alloc = 2 * spot->num + 2;
+     3065: 1113:      new_array = re_realloc (spot->array, re_dfastate_t *, spot->alloc);
+     3065: 1114:      if (BE (new_array == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3065
+    #####: 1115:	return REG_ESPACE;
+     3065: 1116:      spot->array = new_array;
+        -: 1117:    }
+     3264: 1118:  spot->array[spot->num++] = newstate;
+     3264: 1119:  return REG_NOERROR;
+        -: 1120:}
+        -: 1121:
+        -: 1122:/* Create the new state which is independ of contexts.
+        -: 1123:   Return the new state if succeeded, otherwise return NULL.  */
+        -: 1124:
+        -: 1125:static re_dfastate_t *
+function create_ci_newstate called 44 returned 100% blocks executed 77%
+       44: 1126:create_ci_newstate (dfa, nodes, hash)
+        -: 1127:     re_dfa_t *dfa;
+        -: 1128:     const re_node_set *nodes;
+        -: 1129:     unsigned int hash;
+        -: 1130:{
+        -: 1131:  int i;
+        -: 1132:  reg_errcode_t err;
+        -: 1133:  re_dfastate_t *newstate;
+       44: 1134:  newstate = create_newstate_common (dfa, nodes, hash);
+call    0 returned 44
+       44: 1135:  if (BE (newstate == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 44
+    #####: 1136:    return NULL;
+       44: 1137:  newstate->entrance_nodes = &newstate->nodes;
+        -: 1138:
+      141: 1139:  for (i = 0 ; i < nodes->nelem ; i++)
+branch  0 taken 97
+branch  1 taken 44 (fallthrough)
+        -: 1140:    {
+       97: 1141:      re_token_t *node = dfa->nodes + nodes->elems[i];
+       97: 1142:      re_token_type_t type = node->type;
+       97: 1143:      if (type == CHARACTER && !node->constraint)
+branch  0 taken 17 (fallthrough)
+branch  1 taken 80
+branch  2 taken 17 (fallthrough)
+branch  3 taken 0
+       17: 1144:	continue;
+        -: 1145:
+        -: 1146:      /* If the state has the halt node, the state is a halt state.  */
+       80: 1147:      else if (type == END_OF_RE)
+branch  0 taken 5 (fallthrough)
+branch  1 taken 75
+        5: 1148:	newstate->halt = 1;
+        -: 1149:#ifdef RE_ENABLE_I18N
+        -: 1150:      else if (type == COMPLEX_BRACKET
+        -: 1151:	       || (type == OP_PERIOD && MB_CUR_MAX > 1))
+        -: 1152:	newstate->accept_mb = 1;
+        -: 1153:#endif /* RE_ENABLE_I18N */
+       75: 1154:      else if (type == OP_BACK_REF)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 75
+    #####: 1155:	newstate->has_backref = 1;
+       75: 1156:      else if (type == ANCHOR || node->constraint)
+branch  0 taken 75 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 75
+    #####: 1157:	newstate->has_constraint = 1;
+        -: 1158:    }
+       44: 1159:  err = register_state (dfa, newstate, hash);
+call    0 returned 44
+       44: 1160:  if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 44
+        -: 1161:    {
+    #####: 1162:      free_state (newstate);
+call    0 never executed
+    #####: 1163:      newstate = NULL;
+        -: 1164:    }
+       44: 1165:  return newstate;
+        -: 1166:}
+        -: 1167:
+        -: 1168:/* Create the new state which is depend on the context CONTEXT.
+        -: 1169:   Return the new state if succeeded, otherwise return NULL.  */
+        -: 1170:
+        -: 1171:static re_dfastate_t *
+function create_cd_newstate called 3220 returned 100% blocks executed 78%
+     3220: 1172:create_cd_newstate (dfa, nodes, context, hash)
+        -: 1173:     re_dfa_t *dfa;
+        -: 1174:     const re_node_set *nodes;
+        -: 1175:     unsigned int context, hash;
+        -: 1176:{
+     3220: 1177:  int i, nctx_nodes = 0;
+        -: 1178:  reg_errcode_t err;
+        -: 1179:  re_dfastate_t *newstate;
+        -: 1180:
+     3220: 1181:  newstate = create_newstate_common (dfa, nodes, hash);
+call    0 returned 3220
+     3220: 1182:  if (BE (newstate == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3220
+    #####: 1183:    return NULL;
+     3220: 1184:  newstate->context = context;
+     3220: 1185:  newstate->entrance_nodes = &newstate->nodes;
+        -: 1186:
+     8057: 1187:  for (i = 0 ; i < nodes->nelem ; i++)
+branch  0 taken 4837
+branch  1 taken 3220 (fallthrough)
+        -: 1188:    {
+     4837: 1189:      unsigned int constraint = 0;
+     4837: 1190:      re_token_t *node = dfa->nodes + nodes->elems[i];
+     4837: 1191:      re_token_type_t type = node->type;
+     4837: 1192:      if (node->constraint)
+branch  0 taken 949 (fallthrough)
+branch  1 taken 3888
+      949: 1193:	constraint = node->constraint;
+        -: 1194:
+     4837: 1195:      if (type == CHARACTER && !constraint)
+branch  0 taken 2467 (fallthrough)
+branch  1 taken 2370
+branch  2 taken 2095 (fallthrough)
+branch  3 taken 372
+     2095: 1196:	continue;
+        -: 1197:      /* If the state has the halt node, the state is a halt state.  */
+     2742: 1198:      else if (type == END_OF_RE)
+branch  0 taken 861 (fallthrough)
+branch  1 taken 1881
+      861: 1199:	newstate->halt = 1;
+        -: 1200:#ifdef RE_ENABLE_I18N
+        -: 1201:      else if (type == COMPLEX_BRACKET
+        -: 1202:	       || (type == OP_PERIOD && MB_CUR_MAX > 1))
+        -: 1203:	newstate->accept_mb = 1;
+        -: 1204:#endif /* RE_ENABLE_I18N */
+     1881: 1205:      else if (type == OP_BACK_REF)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1881
+    #####: 1206:	newstate->has_backref = 1;
+     1881: 1207:      else if (type == ANCHOR)
+branch  0 taken 949 (fallthrough)
+branch  1 taken 932
+      949: 1208:	constraint = node->opr.ctx_type;
+        -: 1209:
+     2742: 1210:      if (constraint)
+branch  0 taken 1710 (fallthrough)
+branch  1 taken 1032
+        -: 1211:	{
+     1710: 1212:	  if (newstate->entrance_nodes == &newstate->nodes)
+branch  0 taken 761 (fallthrough)
+branch  1 taken 949
+        -: 1213:	    {
+      761: 1214:	      newstate->entrance_nodes = re_malloc (re_node_set, 1);
+      761: 1215:	      if (BE (newstate->entrance_nodes == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 761
+        -: 1216:		{
+    #####: 1217:		  free_state (newstate);
+call    0 never executed
+    #####: 1218:		  return NULL;
+        -: 1219:		}
+      761: 1220:	      re_node_set_init_copy (newstate->entrance_nodes, nodes);
+call    0 returned 761
+      761: 1221:	      nctx_nodes = 0;
+      761: 1222:	      newstate->has_constraint = 1;
+        -: 1223:	    }
+        -: 1224:
+    1710*: 1225:	  if (NOT_SATISFY_PREV_CONSTRAINT (constraint,context))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1710
+branch  2 never executed
+branch  3 never executed
+branch  4 taken 0 (fallthrough)
+branch  5 taken 1710
+branch  6 never executed
+branch  7 never executed
+branch  8 taken 1216 (fallthrough)
+branch  9 taken 494
+branch 10 taken 608 (fallthrough)
+branch 11 taken 608
+branch 12 taken 0 (fallthrough)
+branch 13 taken 1102
+branch 14 never executed
+branch 15 never executed
+        -: 1226:	    {
+      608: 1227:	      re_node_set_remove_at (&newstate->nodes, i - nctx_nodes);
+call    0 returned 608
+      608: 1228:	      ++nctx_nodes;
+        -: 1229:	    }
+        -: 1230:	}
+        -: 1231:    }
+     3220: 1232:  err = register_state (dfa, newstate, hash);
+call    0 returned 3220
+     3220: 1233:  if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3220
+        -: 1234:    {
+    #####: 1235:      free_state (newstate);
+call    0 never executed
+    #####: 1236:      newstate = NULL;
+        -: 1237:    }
+     3220: 1238:  return  newstate;
+        -: 1239:}
+        -: 1240:
+        -: 1241:static void
+function free_state called 0 returned 0% blocks executed 0%
+    #####: 1242:free_state (state)
+        -: 1243:     re_dfastate_t *state;
+        -: 1244:{
+    #####: 1245:  if (state->entrance_nodes != &state->nodes)
+branch  0 never executed
+branch  1 never executed
+        -: 1246:    {
+    #####: 1247:      re_node_set_free (state->entrance_nodes);
+    #####: 1248:      re_free (state->entrance_nodes);
+        -: 1249:    }
+    #####: 1250:  re_node_set_free (&state->nodes);
+    #####: 1251:  re_free (state->trtable);
+    #####: 1252:  re_free (state->trtable_search);
+    #####: 1253:  re_free (state);
+    #####: 1254:}

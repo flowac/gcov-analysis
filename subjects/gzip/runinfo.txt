@@ -1,0 +1,9 @@
+# First create a 100MB test input file. This was reduced from 2GB due to time constraints.
+cd ~/big-drive/subjects/gzip/inputs/testdir
+perl ../../testplans.alt/testscripts/2gbfile.pl
+
+cd ~/big-drive/c-tools/gen_fault_matrix
+
+./make_fault_matrix_with_names.sh gzip 1 5 tsl.universe
+
+

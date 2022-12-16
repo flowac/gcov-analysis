@@ -1,0 +1,4 @@
+TestcaseNumber,TestcaseCount,TestcaseRatio,StatementCount,StatementRatio,BranchCount,BranchRatio,FaultCount,FaultRatio
+519,1,0.126103,1371,85.633979,1205,87.700146,0,0.000000
+498,2,0.252207,1578,98.563398,1350,98.253275,5,1.000000
+13,3,0.378310,1578,98.563398,1350,98.253275,5,1.000000

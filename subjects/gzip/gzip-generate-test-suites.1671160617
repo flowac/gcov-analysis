@@ -1,0 +1,31 @@
+
+Create test suites for /home/test/big-drive//subjects/gzip/gzip-matrix-1 in /home/test/big-drive//subjects/gzip/outputs.alt/v1
+6 faults found
+214 test cases, 1002 branches, 1217 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 11 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/gzip/gzip-matrix-2 in /home/test/big-drive//subjects/gzip/outputs.alt/v2
+3 faults found
+214 test cases, 1126 branches, 1286 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 10 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/gzip/gzip-matrix-3 in /home/test/big-drive//subjects/gzip/outputs.alt/v3
+0 faults found
+
+Create test suites for /home/test/big-drive//subjects/gzip/gzip-matrix-4 in /home/test/big-drive//subjects/gzip/outputs.alt/v4
+3 faults found
+214 test cases, 825 branches, 960 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 9 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/gzip/gzip-matrix-5 in /home/test/big-drive//subjects/gzip/outputs.alt/v5
+5 faults found
+214 test cases, 893 branches, 1055 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 10 times 100 unique random test suites

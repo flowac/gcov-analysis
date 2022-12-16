@@ -1,0 +1,35 @@
+
+Create test suites for /home/test/big-drive//subjects/flex/flex-matrix-1 in /home/test/big-drive//subjects/flex/outputs.alt/v1
+19 faults found
+567 test cases, 590 branches, 814 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 17 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/flex/flex-matrix-2 in /home/test/big-drive//subjects/flex/outputs.alt/v2
+20 faults found
+567 test cases, 2208 branches, 3399 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 24 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/flex/flex-matrix-3 in /home/test/big-drive//subjects/flex/outputs.alt/v3
+17 faults found
+567 test cases, 2162 branches, 3273 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 21 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/flex/flex-matrix-4 in /home/test/big-drive//subjects/flex/outputs.alt/v4
+16 faults found
+567 test cases, 2228 branches, 3428 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 23 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/flex/flex-matrix-5 in /home/test/big-drive//subjects/flex/outputs.alt/v5
+9 faults found
+567 test cases, 76 branches, 131 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 3 times 100 unique random test suites

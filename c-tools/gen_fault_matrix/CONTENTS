@@ -1,0 +1,73 @@
+Generate fault matrix
+
+TOOL DESCRIPTION:
+
+1. combine_fault_data.c		
+	transforms raw data created by scripts which contains differences 
+	between faulty versions into the fault matrix format
+
+2. extract_fault.awk		
+	awk script which extracts nth faults from FaultSeeds.h file
+
+3. extract_from_script.awk		
+	awk script which extracts a single test run from the 
+	mts generated run-and-diff script
+
+
+4. extract_run.awk
+
+5. gen_newVer.c			
+	generates newVer file with all ones
+
+6. gen_temp_file.c			
+	generates temp file or temp directory in /tmp
+
+7. get_data_for_fault_matrix.sh	
+	low level script which creates fault matrix for a given program
+
+8. get_data_for_fault_matrix_version.sh	
+	low level script which creates fault matrix for a given program 
+	for a  given version and a given fault
+
+9. make_fault_matrix.sh		
+	high level script which creates fault matrix for a given program
+
+10. make_fault_matrix_with_names.sh
+        high level script which creates fault matrix for a given program
+        and same as make_fault_matrix.sh except extra parameters
+        (see INSTRUCTION section below and README file for more details)
+
+11. get_fault_matrix_stats.c	
+	print statistics about fault matrix
+
+12. make_newVer_vers.sh		
+	low level script which generates newVer files for a given program 
+	for all versions
+
+13. make_newVer.sh			
+	high level script which generates newVer files for a given program 
+	and a given version
+
+14. process_diffs.awk		
+	awk script which processes output of run-and-diff script into part of 
+	intermediate format used by combine_fault_data mts copy of binary 
+	program which creates run-all and run-and-diff scripts 
+	(can be external to those tools)
+
+
+INSTRUCTIONS:
+
+1) type "make build"
+
+2) run "make_fault_matrix.sh <prog> <number of versions>" for 
+   	all needed programs, or
+   
+   run "make_fault_matrix_with_names.sh <prog> <version start> 
+	<number of versions> <test universe file> <fault matrix file>" 
+	for all needed programs
+
+3) run "make_newVer.sh <prog> <number of versions>" for all needed programs
+
+4) run "get_fault_matrix_stats <fault matrix>" to get fault matrix statistics
+
+NOTE: Read README file for more details.

@@ -1,0 +1,31 @@
+
+Create test suites for /home/test/big-drive//subjects/grep/grep-matrix-1 in /home/test/big-drive//subjects/grep/outputs.alt/v1
+5 faults found
+809 test cases, 1790 branches, 1801 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 20 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/grep/grep-matrix-2 in /home/test/big-drive//subjects/grep/outputs.alt/v2
+4 faults found
+809 test cases, 2205 branches, 2280 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 27 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/grep/grep-matrix-3 in /home/test/big-drive//subjects/grep/outputs.alt/v3
+8 faults found
+809 test cases, 1728 branches, 1755 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 24 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/grep/grep-matrix-4 in /home/test/big-drive//subjects/grep/outputs.alt/v4
+3 faults found
+809 test cases, 2222 branches, 2263 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 24 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/grep/grep-matrix-5 in /home/test/big-drive//subjects/grep/outputs.alt/v5
+0 faults found

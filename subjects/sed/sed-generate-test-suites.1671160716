@@ -1,0 +1,49 @@
+
+Create test suites for /home/test/big-drive//subjects/sed/sed-matrix-1 in /home/test/big-drive//subjects/sed/outputs.alt/v1
+3 faults found
+370 test cases, 1323 branches, 1451 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 22 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/sed/sed-matrix-2 in /home/test/big-drive//subjects/sed/outputs.alt/v2
+5 faults found
+370 test cases, 1391 branches, 2150 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 16 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/sed/sed-matrix-3 in /home/test/big-drive//subjects/sed/outputs.alt/v3
+6 faults found
+370 test cases, 1211 branches, 1459 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 18 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/sed/sed-matrix-4 in /home/test/big-drive//subjects/sed/outputs.alt/v4
+1 faults found
+370 test cases, 1296 branches, 1531 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 22 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/sed/sed-matrix-5 in /home/test/big-drive//subjects/sed/outputs.alt/v5
+4 faults found
+370 test cases, 779 branches, 1003 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 19 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/sed/sed-matrix-6 in /home/test/big-drive//subjects/sed/outputs.alt/v6
+6 faults found
+370 test cases, 803 branches, 1079 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 20 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/sed/sed-matrix-7 in /home/test/big-drive//subjects/sed/outputs.alt/v7
+4 faults found
+370 test cases, 853 branches, 1203 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 20 times 100 unique random test suites

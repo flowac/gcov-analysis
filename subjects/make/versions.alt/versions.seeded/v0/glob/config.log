@@ -1,0 +1,26 @@
+This file contains any messages produced by compilers while
+running configure, to aid debugging if configure makes a mistake.
+
+configure:1129: gcc -o conftest -g -O   conftest.c -ldir   1>&5
+configure: In function 't':
+configure:1125:1: warning: implicit declaration of function 'opendir' [-Wimplicit-function-declaration]
+ 1125 | opendir()
+      | ^~~~~~~
+/usr/bin/ld: cannot find -ldir: No such file or directory
+collect2: error: ld returned 1 exit status
+configure:1198: gcc -o conftest -g -O   conftest.c  1>&5
+configure:1195:17: warning: return type defaults to 'int' [-Wimplicit-int]
+ 1195 | int closedir(); main() { exit(closedir(opendir(".")) != 0); }
+      |                 ^~~~
+configure: In function 'main':
+configure:1195:26: warning: implicit declaration of function 'exit' [-Wimplicit-function-declaration]
+ 1195 | int closedir(); main() { exit(closedir(opendir(".")) != 0); }
+      |                          ^~~~
+configure:1195:1: note: include '<stdlib.h>' or provide a declaration of 'exit'
+ 1194 | #include <$ac_header_dirent>
+  +++ |+#include <stdlib.h>
+ 1195 | int closedir(); main() { exit(closedir(opendir(".")) != 0); }
+configure:1195:26: warning: incompatible implicit declaration of built-in function 'exit' [-Wbuiltin-declaration-mismatch]
+ 1195 | int closedir(); main() { exit(closedir(opendir(".")) != 0); }
+      |                          ^~~~
+configure:1195:26: note: include '<stdlib.h>' or provide a declaration of 'exit'

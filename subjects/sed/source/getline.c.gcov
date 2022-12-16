@@ -1,0 +1,140 @@
+        -:    0:Source:getline.c
+        -:    0:Graph:sed.gcno
+        -:    0:Data:sed.gcda
+        -:    0:Runs:1
+        -:    1:#ifdef HAVE_CONFIG_H
+        -:    2:#include "config.h"
+        -:    3:#endif
+        -:    4:
+        -:    5:#undef _GNU_SOURCE
+        -:    6:
+        -:    7:#include <sys/types.h>
+        -:    8:#include <stdio.h>
+        -:    9:
+        -:   10:#ifdef HAVE_STRINGS_H
+        -:   11:# include <strings.h>
+        -:   12:#else
+        -:   13:# include <string.h>
+        -:   14:#endif /* HAVE_STRINGS_H */
+        -:   15:
+        -:   16:#ifdef HAVE_STDLIB_H
+        -:   17:# include <stdlib.h>
+        -:   18:#endif /* HAVE_STDLIB_H */
+        -:   19:
+        -:   20:#ifdef HAVE_UNISTD_H
+        -:   21:# include <unistd.h>
+        -:   22:#endif /* HAVE_UNISTD_H */
+        -:   23:
+        -:   24:#include <limits.h>
+        -:   25:#include <errno.h>
+        -:   26:
+        -:   27:/* Read up to (and including) a '\n' from STREAM into *LINEPTR
+        -:   28:   (and null-terminate it). *LINEPTR is a pointer returned from malloc (or
+        -:   29:   NULL), pointing to *N characters of space.  It is realloc'd as
+        -:   30:   necessary.  Returns the number of characters read (not including the
+        -:   31:   null terminator), or -1 on error or EOF.  */
+        -:   32:
+        -:   33:ssize_t
+        -:   34:getline (lineptr, n, stream)
+        -:   35:     char **lineptr;
+        -:   36:     size_t *n;
+        -:   37:     FILE *stream;
+        -:   38:{
+        -:   39:  char *line, *p;
+        -:   40:  long size, copy;
+        -:   41:
+      115:   42:  if (lineptr == NULL || n == NULL)
+branch  0 taken 115 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 115
+        -:   43:    {
+    #####:   44:      errno = EINVAL;
+    #####:   45:      return (size_t) -1;
+        -:   46:    }
+        -:   47:
+      115:   48:  if (ferror (stream))
+call    0 returned 115
+branch  1 taken 0 (fallthrough)
+branch  2 taken 115
+    #####:   49:    return (size_t) -1;
+        -:   50:
+        -:   51:  /* Make sure we have a line buffer to start with.  */
+      115:   52:  if (*lineptr == NULL || *n < 2) /* !seen and no buf yet need 2 chars.  */
+branch  0 taken 114 (fallthrough)
+branch  1 taken 1
+branch  2 taken 0 (fallthrough)
+branch  3 taken 114
+        -:   53:    {
+        -:   54:#ifndef	MAX_CANON
+        -:   55:#define	MAX_CANON	256
+        -:   56:#endif
+        1:   57:      if (!*lineptr)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        1:   58:        line = (char *) malloc (MAX_CANON);
+        -:   59:      else
+    #####:   60:        line = (char *) realloc (*lineptr, MAX_CANON);
+        1:   61:      if (line == NULL)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+    #####:   62:	return (size_t) -1;
+        1:   63:      *lineptr = line;
+        1:   64:      *n = MAX_CANON;
+        -:   65:    }
+        -:   66:
+      115:   67:  line = *lineptr;
+      115:   68:  size = *n;
+        -:   69:
+      115:   70:  copy = size;
+      115:   71:  p = line;
+        -:   72:
+        -:   73:  while (1)
+    #####:   74:    {
+        -:   75:      long len;
+        -:   76:      
+     1742:   77:      while (--copy > 0)
+branch  0 taken 1742
+branch  1 taken 0 (fallthrough)
+        -:   78:	{
+     1742:   79:	  register int c = getc (stream);
+call    0 returned 1742
+     1742:   80:	  if (c == EOF)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 1741
+        1:   81:	    goto lose;
+     1741:   82:	  else if ((*p++ = c) == '\n')
+branch  0 taken 114 (fallthrough)
+branch  1 taken 1627
+      114:   83:	    goto win;
+        -:   84:	}
+        -:   85:      
+        -:   86:      /* Need to enlarge the line buffer.  */
+    #####:   87:      len = p - line;
+    #####:   88:      size *= 2;
+    #####:   89:      line = (char *) realloc (line, size);
+    #####:   90:      if (line == NULL)
+branch  0 never executed
+branch  1 never executed
+    #####:   91:	goto lose;
+    #####:   92:      *lineptr = line;
+    #####:   93:      *n = size;
+    #####:   94:      p = line + len;
+    #####:   95:      copy = size - len;
+        -:   96:    }
+        -:   97:
+        1:   98: lose:
+        1:   99:  if (p == *lineptr)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        1:  100:    return (size_t) -1;
+        -:  101:
+        -:  102:  /* Return a partial line since we got an error in the middle.  */
+    #####:  103: win:
+        -:  104:#if defined(WIN32) || defined(_WIN32) || defined(__CYGWIN__) || defined(MSDOS) || defined(__EMX__)
+        -:  105:  if (p - 2 >= *lineptr && p[-2] == '\r')
+        -:  106:    p[-2] = p[-1], --p;
+        -:  107:#endif
+      114:  108:  *p = '\0';
+      114:  109:  return p - *lineptr;
+        -:  110:}

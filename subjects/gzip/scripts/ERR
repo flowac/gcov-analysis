@@ -1,0 +1,54 @@
+Script started on 2022-12-15 22:16:42-05:00 [TERM="xterm-256color" TTY="/dev/pts/2" COLUMNS="-1" LINES="-1"]
+mv: cannot stat '/home/test/big-drive//gzip/inputs/gzdir/file9': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpoptd.sh: line 5: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file3.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpoptf.sh: cp to output dir failed
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpoptf.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file32.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpoptq.sh: cp to op dir failed
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpoptq.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/subdir1/file': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpoptr1.sh: line 3: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/subdir2/file': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpoptr.sh: line 3: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/subdir3/file': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpoptr2.sh: line 3: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file11.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpoptv.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file13.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpopt1.sh: cp to output dir failed
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpopt1.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file15.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpopt2.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file16.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpopt3.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file17.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpopt4.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file18.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpopt5.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file19.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpopt6.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file20.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpopt7.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file21.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpopt8.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file22.z': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cpopt9.sh: line 8: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+
+Run break control
+
+
+
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/breakscript.sh: 17: kill: Usage: kill [-s sigspec | -signum | -sigspec] [pid | job]... or
+kill -l [exitstatus]
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/binaryfile1*': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/breakscript.sh: 20: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: not found
+
+Exit break control!
+
+cp: cannot stat '/home/test/big-drive//gzip/inputs/testdir/file1': No such file or directory
+chmod: cannot access '/home/test/big-drive//gzip/inputs/length/abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcde': No such file or directory
+cp: cannot stat '/home/test/big-drive//gzip/inputs/length/abcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcdefghijabcde': No such file or directory
+/home/test/big-drive//subjects/gzip/testplans.alt/testscripts/cplongname.sh: line 3: /home/test/big-drive//gzip/testplans.alt/testscripts/cleanup.sh: No such file or directory
+
+Script done on 2022-12-15 22:16:46-05:00 [COMMAND_EXIT_CODE="0"]

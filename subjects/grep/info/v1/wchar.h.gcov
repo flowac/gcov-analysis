@@ -1,0 +1,884 @@
+        -:    0:Source:/usr/include/wchar.h
+        -:    0:Graph:grep.gcno
+        -:    0:Data:grep.gcda
+        -:    0:Runs:809
+        -:    1:/* Copyright (C) 1995-2022 Free Software Foundation, Inc.
+        -:    2:   This file is part of the GNU C Library.
+        -:    3:
+        -:    4:   The GNU C Library is free software; you can redistribute it and/or
+        -:    5:   modify it under the terms of the GNU Lesser General Public
+        -:    6:   License as published by the Free Software Foundation; either
+        -:    7:   version 2.1 of the License, or (at your option) any later version.
+        -:    8:
+        -:    9:   The GNU C Library is distributed in the hope that it will be useful,
+        -:   10:   but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   11:   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   12:   Lesser General Public License for more details.
+        -:   13:
+        -:   14:   You should have received a copy of the GNU Lesser General Public
+        -:   15:   License along with the GNU C Library; if not, see
+        -:   16:   <https://www.gnu.org/licenses/>.  */
+        -:   17:
+        -:   18:/*
+        -:   19: *      ISO C99 Standard: 7.24
+        -:   20: *	Extended multibyte and wide character utilities	<wchar.h>
+        -:   21: */
+        -:   22:
+        -:   23:#ifndef _WCHAR_H
+        -:   24:#define _WCHAR_H 1
+        -:   25:
+        -:   26:#define __GLIBC_INTERNAL_STARTING_HEADER_IMPLEMENTATION
+        -:   27:#include <bits/libc-header-start.h>
+        -:   28:
+        -:   29:/* Gather machine dependent type support.  */
+        -:   30:#include <bits/floatn.h>
+        -:   31:
+        -:   32:#define __need_size_t
+        -:   33:#define __need_wchar_t
+        -:   34:#define __need_NULL
+        -:   35:#include <stddef.h>
+        -:   36:
+        -:   37:#define __need___va_list
+        -:   38:#include <stdarg.h>
+        -:   39:
+        -:   40:#include <bits/wchar.h>
+        -:   41:#include <bits/types/wint_t.h>
+        -:   42:#include <bits/types/mbstate_t.h>
+        -:   43:#include <bits/types/__FILE.h>
+        -:   44:
+        -:   45:#if defined __USE_UNIX98 || defined __USE_XOPEN2K
+        -:   46:# include <bits/types/FILE.h>
+        -:   47:#endif
+        -:   48:#ifdef __USE_XOPEN2K8
+        -:   49:# include <bits/types/locale_t.h>
+        -:   50:#endif
+        -:   51:
+        -:   52:/* Tell the caller that we provide correct C++ prototypes.  */
+        -:   53:#if defined __cplusplus && __GNUC_PREREQ (4, 4)
+        -:   54:# define __CORRECT_ISO_CPP_WCHAR_H_PROTO
+        -:   55:#endif
+        -:   56:
+        -:   57:#ifndef WCHAR_MIN
+        -:   58:/* These constants might also be defined in <inttypes.h>.  */
+        -:   59:# define WCHAR_MIN __WCHAR_MIN
+        -:   60:# define WCHAR_MAX __WCHAR_MAX
+        -:   61:#endif
+        -:   62:
+        -:   63:#ifndef WEOF
+        -:   64:# define WEOF (0xffffffffu)
+        -:   65:#endif
+        -:   66:
+        -:   67:/* All versions of XPG prior to the publication of ISO C99 required
+        -:   68:   the bulk of <wctype.h>'s declarations to appear in this header
+        -:   69:   (because <wctype.h> did not exist prior to C99).  In POSIX.1-2001
+        -:   70:   those declarations were marked as XSI extensions; in -2008 they
+        -:   71:   were additionally marked as obsolescent.  _GNU_SOURCE mode
+        -:   72:   anticipates the removal of these declarations in the next revision
+        -:   73:   of POSIX.  */
+        -:   74:#if (defined __USE_XOPEN && !defined __USE_GNU \
+        -:   75:     && !(defined __USE_XOPEN2K && !defined __USE_XOPEN2KXSI))
+        -:   76:# include <bits/wctype-wchar.h>
+        -:   77:#endif
+        -:   78:
+        -:   79:__BEGIN_DECLS
+        -:   80:
+        -:   81:/* This incomplete type is defined in <time.h> but needed here because
+        -:   82:   of `wcsftime'.  */
+        -:   83:struct tm;
+        -:   84:
+        -:   85:
+        -:   86:/* Copy SRC to DEST.  */
+        -:   87:extern wchar_t *wcscpy (wchar_t *__restrict __dest,
+        -:   88:			const wchar_t *__restrict __src)
+        -:   89:     __THROW __nonnull ((1, 2));
+        -:   90:
+        -:   91:/* Copy no more than N wide-characters of SRC to DEST.  */
+        -:   92:extern wchar_t *wcsncpy (wchar_t *__restrict __dest,
+        -:   93:			 const wchar_t *__restrict __src, size_t __n)
+        -:   94:     __THROW __nonnull ((1, 2));
+        -:   95:
+        -:   96:/* Append SRC onto DEST.  */
+        -:   97:extern wchar_t *wcscat (wchar_t *__restrict __dest,
+        -:   98:			const wchar_t *__restrict __src)
+        -:   99:     __THROW __nonnull ((1, 2));
+        -:  100:/* Append no more than N wide-characters of SRC onto DEST.  */
+        -:  101:extern wchar_t *wcsncat (wchar_t *__restrict __dest,
+        -:  102:			 const wchar_t *__restrict __src, size_t __n)
+        -:  103:     __THROW __nonnull ((1, 2));
+        -:  104:
+        -:  105:/* Compare S1 and S2.  */
+        -:  106:extern int wcscmp (const wchar_t *__s1, const wchar_t *__s2)
+        -:  107:     __THROW __attribute_pure__ __nonnull ((1, 2));
+        -:  108:/* Compare N wide-characters of S1 and S2.  */
+        -:  109:extern int wcsncmp (const wchar_t *__s1, const wchar_t *__s2, size_t __n)
+        -:  110:     __THROW __attribute_pure__ __nonnull ((1, 2));
+        -:  111:
+        -:  112:#ifdef __USE_XOPEN2K8
+        -:  113:/* Compare S1 and S2, ignoring case.  */
+        -:  114:extern int wcscasecmp (const wchar_t *__s1, const wchar_t *__s2) __THROW;
+        -:  115:
+        -:  116:/* Compare no more than N chars of S1 and S2, ignoring case.  */
+        -:  117:extern int wcsncasecmp (const wchar_t *__s1, const wchar_t *__s2,
+        -:  118:			size_t __n) __THROW;
+        -:  119:
+        -:  120:/* Similar to the two functions above but take the information from
+        -:  121:   the provided locale and not the global locale.  */
+        -:  122:extern int wcscasecmp_l (const wchar_t *__s1, const wchar_t *__s2,
+        -:  123:			 locale_t __loc) __THROW;
+        -:  124:
+        -:  125:extern int wcsncasecmp_l (const wchar_t *__s1, const wchar_t *__s2,
+        -:  126:			  size_t __n, locale_t __loc) __THROW;
+        -:  127:#endif
+        -:  128:
+        -:  129:/* Compare S1 and S2, both interpreted as appropriate to the
+        -:  130:   LC_COLLATE category of the current locale.  */
+        -:  131:extern int wcscoll (const wchar_t *__s1, const wchar_t *__s2) __THROW;
+        -:  132:/* Transform S2 into array pointed to by S1 such that if wcscmp is
+        -:  133:   applied to two transformed strings the result is the as applying
+        -:  134:   `wcscoll' to the original strings.  */
+        -:  135:extern size_t wcsxfrm (wchar_t *__restrict __s1,
+        -:  136:		       const wchar_t *__restrict __s2, size_t __n) __THROW;
+        -:  137:
+        -:  138:#ifdef __USE_XOPEN2K8
+        -:  139:/* Similar to the two functions above but take the information from
+        -:  140:   the provided locale and not the global locale.  */
+        -:  141:
+        -:  142:/* Compare S1 and S2, both interpreted as appropriate to the
+        -:  143:   LC_COLLATE category of the given locale.  */
+        -:  144:extern int wcscoll_l (const wchar_t *__s1, const wchar_t *__s2,
+        -:  145:		      locale_t __loc) __THROW;
+        -:  146:
+        -:  147:/* Transform S2 into array pointed to by S1 such that if wcscmp is
+        -:  148:   applied to two transformed strings the result is the as applying
+        -:  149:   `wcscoll' to the original strings.  */
+        -:  150:extern size_t wcsxfrm_l (wchar_t *__s1, const wchar_t *__s2,
+        -:  151:			 size_t __n, locale_t __loc) __THROW;
+        -:  152:
+        -:  153:/* Duplicate S, returning an identical malloc'd string.  */
+        -:  154:extern wchar_t *wcsdup (const wchar_t *__s) __THROW
+        -:  155:  __attribute_malloc__ __attr_dealloc_free;
+        -:  156:#endif
+        -:  157:
+        -:  158:/* Find the first occurrence of WC in WCS.  */
+        -:  159:#ifdef __CORRECT_ISO_CPP_WCHAR_H_PROTO
+        -:  160:extern "C++" wchar_t *wcschr (wchar_t *__wcs, wchar_t __wc)
+        -:  161:     __THROW __asm ("wcschr") __attribute_pure__;
+        -:  162:extern "C++" const wchar_t *wcschr (const wchar_t *__wcs, wchar_t __wc)
+        -:  163:     __THROW __asm ("wcschr") __attribute_pure__;
+        -:  164:#else
+        -:  165:extern wchar_t *wcschr (const wchar_t *__wcs, wchar_t __wc)
+        -:  166:     __THROW __attribute_pure__;
+        -:  167:#endif
+        -:  168:/* Find the last occurrence of WC in WCS.  */
+        -:  169:#ifdef __CORRECT_ISO_CPP_WCHAR_H_PROTO
+        -:  170:extern "C++" wchar_t *wcsrchr (wchar_t *__wcs, wchar_t __wc)
+        -:  171:     __THROW __asm ("wcsrchr") __attribute_pure__;
+        -:  172:extern "C++" const wchar_t *wcsrchr (const wchar_t *__wcs, wchar_t __wc)
+        -:  173:     __THROW __asm ("wcsrchr") __attribute_pure__;
+        -:  174:#else
+        -:  175:extern wchar_t *wcsrchr (const wchar_t *__wcs, wchar_t __wc)
+        -:  176:     __THROW __attribute_pure__;
+        -:  177:#endif
+        -:  178:
+        -:  179:#ifdef __USE_GNU
+        -:  180:/* This function is similar to `wcschr'.  But it returns a pointer to
+        -:  181:   the closing NUL wide character in case C is not found in S.  */
+        -:  182:extern wchar_t *wcschrnul (const wchar_t *__s, wchar_t __wc)
+        -:  183:     __THROW __attribute_pure__;
+        -:  184:#endif
+        -:  185:
+        -:  186:/* Return the length of the initial segmet of WCS which
+        -:  187:   consists entirely of wide characters not in REJECT.  */
+        -:  188:extern size_t wcscspn (const wchar_t *__wcs, const wchar_t *__reject)
+        -:  189:     __THROW __attribute_pure__;
+        -:  190:/* Return the length of the initial segmet of WCS which
+        -:  191:   consists entirely of wide characters in  ACCEPT.  */
+        -:  192:extern size_t wcsspn (const wchar_t *__wcs, const wchar_t *__accept)
+        -:  193:     __THROW __attribute_pure__;
+        -:  194:/* Find the first occurrence in WCS of any character in ACCEPT.  */
+        -:  195:#ifdef __CORRECT_ISO_CPP_WCHAR_H_PROTO
+        -:  196:extern "C++" wchar_t *wcspbrk (wchar_t *__wcs, const wchar_t *__accept)
+        -:  197:     __THROW __asm ("wcspbrk") __attribute_pure__;
+        -:  198:extern "C++" const wchar_t *wcspbrk (const wchar_t *__wcs,
+        -:  199:				     const wchar_t *__accept)
+        -:  200:     __THROW __asm ("wcspbrk") __attribute_pure__;
+        -:  201:#else
+        -:  202:extern wchar_t *wcspbrk (const wchar_t *__wcs, const wchar_t *__accept)
+        -:  203:     __THROW __attribute_pure__;
+        -:  204:#endif
+        -:  205:/* Find the first occurrence of NEEDLE in HAYSTACK.  */
+        -:  206:#ifdef __CORRECT_ISO_CPP_WCHAR_H_PROTO
+        -:  207:extern "C++" wchar_t *wcsstr (wchar_t *__haystack, const wchar_t *__needle)
+        -:  208:     __THROW __asm ("wcsstr") __attribute_pure__;
+        -:  209:extern "C++" const wchar_t *wcsstr (const wchar_t *__haystack,
+        -:  210:				    const wchar_t *__needle)
+        -:  211:     __THROW __asm ("wcsstr") __attribute_pure__;
+        -:  212:#else
+        -:  213:extern wchar_t *wcsstr (const wchar_t *__haystack, const wchar_t *__needle)
+        -:  214:     __THROW __attribute_pure__;
+        -:  215:#endif
+        -:  216:
+        -:  217:/* Divide WCS into tokens separated by characters in DELIM.  */
+        -:  218:extern wchar_t *wcstok (wchar_t *__restrict __s,
+        -:  219:			const wchar_t *__restrict __delim,
+        -:  220:			wchar_t **__restrict __ptr) __THROW;
+        -:  221:
+        -:  222:/* Return the number of wide characters in S.  */
+        -:  223:extern size_t wcslen (const wchar_t *__s) __THROW __attribute_pure__;
+        -:  224:
+        -:  225:#ifdef __USE_XOPEN
+        -:  226:/* Another name for `wcsstr' from XPG4.  */
+        -:  227:# ifdef __CORRECT_ISO_CPP_WCHAR_H_PROTO
+        -:  228:extern "C++" wchar_t *wcswcs (wchar_t *__haystack, const wchar_t *__needle)
+        -:  229:     __THROW __asm ("wcswcs") __attribute_pure__;
+        -:  230:extern "C++" const wchar_t *wcswcs (const wchar_t *__haystack,
+        -:  231:				    const wchar_t *__needle)
+        -:  232:     __THROW __asm ("wcswcs") __attribute_pure__;
+        -:  233:# else
+        -:  234:extern wchar_t *wcswcs (const wchar_t *__haystack, const wchar_t *__needle)
+        -:  235:     __THROW __attribute_pure__;
+        -:  236:# endif
+        -:  237:#endif
+        -:  238:
+        -:  239:#ifdef __USE_XOPEN2K8
+        -:  240:/* Return the number of wide characters in S, but at most MAXLEN.  */
+        -:  241:extern size_t wcsnlen (const wchar_t *__s, size_t __maxlen)
+        -:  242:     __THROW __attribute_pure__;
+        -:  243:#endif
+        -:  244:
+        -:  245:
+        -:  246:/* Search N wide characters of S for C.  */
+        -:  247:#ifdef __CORRECT_ISO_CPP_WCHAR_H_PROTO
+        -:  248:extern "C++" wchar_t *wmemchr (wchar_t *__s, wchar_t __c, size_t __n)
+        -:  249:     __THROW __asm ("wmemchr") __attribute_pure__;
+        -:  250:extern "C++" const wchar_t *wmemchr (const wchar_t *__s, wchar_t __c,
+        -:  251:				     size_t __n)
+        -:  252:     __THROW __asm ("wmemchr") __attribute_pure__;
+        -:  253:#else
+        -:  254:extern wchar_t *wmemchr (const wchar_t *__s, wchar_t __c, size_t __n)
+        -:  255:     __THROW __attribute_pure__;
+        -:  256:#endif
+        -:  257:
+        -:  258:/* Compare N wide characters of S1 and S2.  */
+        -:  259:extern int wmemcmp (const wchar_t *__s1, const wchar_t *__s2, size_t __n)
+        -:  260:     __THROW __attribute_pure__;
+        -:  261:
+        -:  262:/* Copy N wide characters of SRC to DEST.  */
+        -:  263:extern wchar_t *wmemcpy (wchar_t *__restrict __s1,
+        -:  264:			 const wchar_t *__restrict __s2, size_t __n) __THROW;
+        -:  265:
+        -:  266:/* Copy N wide characters of SRC to DEST, guaranteeing
+        -:  267:   correct behavior for overlapping strings.  */
+        -:  268:extern wchar_t *wmemmove (wchar_t *__s1, const wchar_t *__s2, size_t __n)
+        -:  269:     __THROW;
+        -:  270:
+        -:  271:/* Set N wide characters of S to C.  */
+        -:  272:extern wchar_t *wmemset (wchar_t *__s, wchar_t __c, size_t __n) __THROW;
+        -:  273:
+        -:  274:#ifdef __USE_GNU
+        -:  275:/* Copy N wide characters of SRC to DEST and return pointer to following
+        -:  276:   wide character.  */
+        -:  277:extern wchar_t *wmempcpy (wchar_t *__restrict __s1,
+        -:  278:			  const wchar_t *__restrict __s2, size_t __n)
+        -:  279:     __THROW;
+        -:  280:#endif
+        -:  281:
+        -:  282:
+        -:  283:/* Determine whether C constitutes a valid (one-byte) multibyte
+        -:  284:   character.  */
+function btowc called 6400 returned 100% blocks executed 100%
+     6400:  285:extern wint_t btowc (int __c) __THROW;
+branch  0 taken 6400 (fallthrough)
+branch  1 taken 0
+        -:  286:
+        -:  287:/* Determine whether C corresponds to a member of the extended
+        -:  288:   character set whose multibyte representation is a single byte.  */
+        -:  289:extern int wctob (wint_t __c) __THROW;
+        -:  290:
+        -:  291:/* Determine whether PS points to an object representing the initial
+        -:  292:   state.  */
+        -:  293:extern int mbsinit (const mbstate_t *__ps) __THROW __attribute_pure__;
+        -:  294:
+        -:  295:/* Write wide character representation of multibyte character pointed
+        -:  296:   to by S to PWC.  */
+        -:  297:extern size_t mbrtowc (wchar_t *__restrict __pwc,
+        -:  298:		       const char *__restrict __s, size_t __n,
+        -:  299:		       mbstate_t *__restrict __p) __THROW;
+        -:  300:
+        -:  301:/* Write multibyte representation of wide character WC to S.  */
+        -:  302:extern size_t wcrtomb (char *__restrict __s, wchar_t __wc,
+        -:  303:		       mbstate_t *__restrict __ps) __THROW;
+        -:  304:
+        -:  305:/* Return number of bytes in multibyte character pointed to by S.  */
+        -:  306:extern size_t __mbrlen (const char *__restrict __s, size_t __n,
+        -:  307:			mbstate_t *__restrict __ps) __THROW;
+        -:  308:extern size_t mbrlen (const char *__restrict __s, size_t __n,
+        -:  309:		      mbstate_t *__restrict __ps) __THROW;
+        -:  310:
+        -:  311:#ifdef __USE_EXTERN_INLINES
+        -:  312:/* Define inline function as optimization.  */
+        -:  313:
+        -:  314:/* We can use the BTOWC and WCTOB optimizations since we know that all
+        -:  315:   locales must use ASCII encoding for the values in the ASCII range
+        -:  316:   and because the wchar_t encoding is always ISO 10646.  */
+        -:  317:extern wint_t __btowc_alias (int __c) __asm ("btowc");
+        -:  318:__extern_inline wint_t
+        -:  319:__NTH (btowc (int __c))
+        -:  320:{ return (__builtin_constant_p (__c) && __c >= '\0' && __c <= '\x7f'
+        -:  321:	  ? (wint_t) __c : __btowc_alias (__c)); }
+        -:  322:
+        -:  323:extern int __wctob_alias (wint_t __c) __asm ("wctob");
+        -:  324:__extern_inline int
+        -:  325:__NTH (wctob (wint_t __wc))
+        -:  326:{ return (__builtin_constant_p (__wc) && __wc >= L'\0' && __wc <= L'\x7f'
+        -:  327:	  ? (int) __wc : __wctob_alias (__wc)); }
+        -:  328:
+        -:  329:__extern_inline size_t
+        -:  330:__NTH (mbrlen (const char *__restrict __s, size_t __n,
+        -:  331:	       mbstate_t *__restrict __ps))
+        -:  332:{ return (__ps != NULL
+        -:  333:	  ? mbrtowc (NULL, __s, __n, __ps) : __mbrlen (__s, __n, NULL)); }
+        -:  334:#endif
+        -:  335:
+        -:  336:/* Write wide character representation of multibyte character string
+        -:  337:   SRC to DST.  */
+        -:  338:extern size_t mbsrtowcs (wchar_t *__restrict __dst,
+        -:  339:			 const char **__restrict __src, size_t __len,
+        -:  340:			 mbstate_t *__restrict __ps) __THROW;
+        -:  341:
+        -:  342:/* Write multibyte character representation of wide character string
+        -:  343:   SRC to DST.  */
+        -:  344:extern size_t wcsrtombs (char *__restrict __dst,
+        -:  345:			 const wchar_t **__restrict __src, size_t __len,
+        -:  346:			 mbstate_t *__restrict __ps) __THROW;
+        -:  347:
+        -:  348:
+        -:  349:#ifdef	__USE_XOPEN2K8
+        -:  350:/* Write wide character representation of at most NMC bytes of the
+        -:  351:   multibyte character string SRC to DST.  */
+        -:  352:extern size_t mbsnrtowcs (wchar_t *__restrict __dst,
+        -:  353:			  const char **__restrict __src, size_t __nmc,
+        -:  354:			  size_t __len, mbstate_t *__restrict __ps) __THROW;
+        -:  355:
+        -:  356:/* Write multibyte character representation of at most NWC characters
+        -:  357:   from the wide character string SRC to DST.  */
+        -:  358:extern size_t wcsnrtombs (char *__restrict __dst,
+        -:  359:			  const wchar_t **__restrict __src,
+        -:  360:			  size_t __nwc, size_t __len,
+        -:  361:			  mbstate_t *__restrict __ps) __THROW;
+        -:  362:#endif	/* use POSIX 2008 */
+        -:  363:
+        -:  364:
+        -:  365:/* The following functions are extensions found in X/Open CAE.  */
+        -:  366:#ifdef __USE_XOPEN
+        -:  367:/* Determine number of column positions required for C.  */
+        -:  368:extern int wcwidth (wchar_t __c) __THROW;
+        -:  369:
+        -:  370:/* Determine number of column positions required for first N wide
+        -:  371:   characters (or fewer if S ends before this) in S.  */
+        -:  372:extern int wcswidth (const wchar_t *__s, size_t __n) __THROW;
+        -:  373:#endif	/* Use X/Open.  */
+        -:  374:
+        -:  375:
+        -:  376:/* Convert initial portion of the wide string NPTR to `double'
+        -:  377:   representation.  */
+        -:  378:extern double wcstod (const wchar_t *__restrict __nptr,
+        -:  379:		      wchar_t **__restrict __endptr) __THROW;
+        -:  380:
+        -:  381:#ifdef __USE_ISOC99
+        -:  382:/* Likewise for `float' and `long double' sizes of floating-point numbers.  */
+        -:  383:extern float wcstof (const wchar_t *__restrict __nptr,
+        -:  384:		     wchar_t **__restrict __endptr) __THROW;
+        -:  385:extern long double wcstold (const wchar_t *__restrict __nptr,
+        -:  386:			    wchar_t **__restrict __endptr) __THROW;
+        -:  387:#endif /* C99 */
+        -:  388:
+        -:  389:/* Likewise for `_FloatN' and `_FloatNx' when support is enabled.  */
+        -:  390:
+        -:  391:#if __HAVE_FLOAT16 && defined __USE_GNU
+        -:  392:extern _Float16 wcstof16 (const wchar_t *__restrict __nptr,
+        -:  393:			  wchar_t **__restrict __endptr) __THROW;
+        -:  394:#endif
+        -:  395:
+        -:  396:#if __HAVE_FLOAT32 && defined __USE_GNU
+        -:  397:extern _Float32 wcstof32 (const wchar_t *__restrict __nptr,
+        -:  398:			  wchar_t **__restrict __endptr) __THROW;
+        -:  399:#endif
+        -:  400:
+        -:  401:#if __HAVE_FLOAT64 && defined __USE_GNU
+        -:  402:extern _Float64 wcstof64 (const wchar_t *__restrict __nptr,
+        -:  403:			  wchar_t **__restrict __endptr) __THROW;
+        -:  404:#endif
+        -:  405:
+        -:  406:#if __HAVE_FLOAT128 && defined __USE_GNU
+        -:  407:extern _Float128 wcstof128 (const wchar_t *__restrict __nptr,
+        -:  408:			    wchar_t **__restrict __endptr) __THROW;
+        -:  409:#endif
+        -:  410:
+        -:  411:#if __HAVE_FLOAT32X && defined __USE_GNU
+        -:  412:extern _Float32x wcstof32x (const wchar_t *__restrict __nptr,
+        -:  413:			    wchar_t **__restrict __endptr) __THROW;
+        -:  414:#endif
+        -:  415:
+        -:  416:#if __HAVE_FLOAT64X && defined __USE_GNU
+        -:  417:extern _Float64x wcstof64x (const wchar_t *__restrict __nptr,
+        -:  418:			    wchar_t **__restrict __endptr) __THROW;
+        -:  419:#endif
+        -:  420:
+        -:  421:#if __HAVE_FLOAT128X && defined __USE_GNU
+        -:  422:extern _Float128x wcstof128x (const wchar_t *__restrict __nptr,
+        -:  423:			      wchar_t **__restrict __endptr) __THROW;
+        -:  424:#endif
+        -:  425:
+        -:  426:
+        -:  427:/* Convert initial portion of wide string NPTR to `long int'
+        -:  428:   representation.  */
+        -:  429:extern long int wcstol (const wchar_t *__restrict __nptr,
+        -:  430:			wchar_t **__restrict __endptr, int __base) __THROW;
+        -:  431:
+        -:  432:/* Convert initial portion of wide string NPTR to `unsigned long int'
+        -:  433:   representation.  */
+        -:  434:extern unsigned long int wcstoul (const wchar_t *__restrict __nptr,
+        -:  435:				  wchar_t **__restrict __endptr, int __base)
+        -:  436:     __THROW;
+        -:  437:
+        -:  438:#ifdef __USE_ISOC99
+        -:  439:/* Convert initial portion of wide string NPTR to `long long int'
+        -:  440:   representation.  */
+        -:  441:__extension__
+        -:  442:extern long long int wcstoll (const wchar_t *__restrict __nptr,
+        -:  443:			      wchar_t **__restrict __endptr, int __base)
+        -:  444:     __THROW;
+        -:  445:
+        -:  446:/* Convert initial portion of wide string NPTR to `unsigned long long int'
+        -:  447:   representation.  */
+        -:  448:__extension__
+        -:  449:extern unsigned long long int wcstoull (const wchar_t *__restrict __nptr,
+        -:  450:					wchar_t **__restrict __endptr,
+        -:  451:					int __base) __THROW;
+        -:  452:#endif /* ISO C99.  */
+        -:  453:
+        -:  454:#ifdef __USE_GNU
+        -:  455:/* Convert initial portion of wide string NPTR to `long long int'
+        -:  456:   representation.  */
+        -:  457:__extension__
+        -:  458:extern long long int wcstoq (const wchar_t *__restrict __nptr,
+        -:  459:			     wchar_t **__restrict __endptr, int __base)
+        -:  460:     __THROW;
+        -:  461:
+        -:  462:/* Convert initial portion of wide string NPTR to `unsigned long long int'
+        -:  463:   representation.  */
+        -:  464:__extension__
+        -:  465:extern unsigned long long int wcstouq (const wchar_t *__restrict __nptr,
+        -:  466:				       wchar_t **__restrict __endptr,
+        -:  467:				       int __base) __THROW;
+        -:  468:#endif /* Use GNU.  */
+        -:  469:
+        -:  470:#ifdef __USE_GNU
+        -:  471:/* Parallel versions of the functions above which take the locale to
+        -:  472:   use as an additional parameter.  These are GNU extensions inspired
+        -:  473:   by the POSIX.1-2008 extended locale API.  */
+        -:  474:extern long int wcstol_l (const wchar_t *__restrict __nptr,
+        -:  475:			  wchar_t **__restrict __endptr, int __base,
+        -:  476:			  locale_t __loc) __THROW;
+        -:  477:
+        -:  478:extern unsigned long int wcstoul_l (const wchar_t *__restrict __nptr,
+        -:  479:				    wchar_t **__restrict __endptr,
+        -:  480:				    int __base, locale_t __loc) __THROW;
+        -:  481:
+        -:  482:__extension__
+        -:  483:extern long long int wcstoll_l (const wchar_t *__restrict __nptr,
+        -:  484:				wchar_t **__restrict __endptr,
+        -:  485:				int __base, locale_t __loc) __THROW;
+        -:  486:
+        -:  487:__extension__
+        -:  488:extern unsigned long long int wcstoull_l (const wchar_t *__restrict __nptr,
+        -:  489:					  wchar_t **__restrict __endptr,
+        -:  490:					  int __base, locale_t __loc)
+        -:  491:     __THROW;
+        -:  492:
+        -:  493:extern double wcstod_l (const wchar_t *__restrict __nptr,
+        -:  494:			wchar_t **__restrict __endptr, locale_t __loc)
+        -:  495:     __THROW;
+        -:  496:
+        -:  497:extern float wcstof_l (const wchar_t *__restrict __nptr,
+        -:  498:		       wchar_t **__restrict __endptr, locale_t __loc)
+        -:  499:     __THROW;
+        -:  500:
+        -:  501:extern long double wcstold_l (const wchar_t *__restrict __nptr,
+        -:  502:			      wchar_t **__restrict __endptr,
+        -:  503:			      locale_t __loc) __THROW;
+        -:  504:
+        -:  505:# if __HAVE_FLOAT16
+        -:  506:extern _Float16 wcstof16_l (const wchar_t *__restrict __nptr,
+        -:  507:			    wchar_t **__restrict __endptr,
+        -:  508:			    locale_t __loc) __THROW;
+        -:  509:# endif
+        -:  510:
+        -:  511:# if __HAVE_FLOAT32
+        -:  512:extern _Float32 wcstof32_l (const wchar_t *__restrict __nptr,
+        -:  513:			    wchar_t **__restrict __endptr,
+        -:  514:			    locale_t __loc) __THROW;
+        -:  515:# endif
+        -:  516:
+        -:  517:# if __HAVE_FLOAT64
+        -:  518:extern _Float64 wcstof64_l (const wchar_t *__restrict __nptr,
+        -:  519:			    wchar_t **__restrict __endptr,
+        -:  520:			    locale_t __loc) __THROW;
+        -:  521:# endif
+        -:  522:
+        -:  523:# if __HAVE_FLOAT128
+        -:  524:extern _Float128 wcstof128_l (const wchar_t *__restrict __nptr,
+        -:  525:			      wchar_t **__restrict __endptr,
+        -:  526:			      locale_t __loc) __THROW;
+        -:  527:# endif
+        -:  528:
+        -:  529:# if __HAVE_FLOAT32X
+        -:  530:extern _Float32x wcstof32x_l (const wchar_t *__restrict __nptr,
+        -:  531:			      wchar_t **__restrict __endptr,
+        -:  532:			      locale_t __loc) __THROW;
+        -:  533:# endif
+        -:  534:
+        -:  535:# if __HAVE_FLOAT64X
+        -:  536:extern _Float64x wcstof64x_l (const wchar_t *__restrict __nptr,
+        -:  537:			      wchar_t **__restrict __endptr,
+        -:  538:			      locale_t __loc) __THROW;
+        -:  539:# endif
+        -:  540:
+        -:  541:# if __HAVE_FLOAT128X
+        -:  542:extern _Float128x wcstof128x_l (const wchar_t *__restrict __nptr,
+        -:  543:				wchar_t **__restrict __endptr,
+        -:  544:				locale_t __loc) __THROW;
+        -:  545:# endif
+        -:  546:#endif	/* use GNU */
+        -:  547:
+        -:  548:
+        -:  549:#ifdef __USE_XOPEN2K8
+        -:  550:/* Copy SRC to DEST, returning the address of the terminating L'\0' in
+        -:  551:   DEST.  */
+        -:  552:extern wchar_t *wcpcpy (wchar_t *__restrict __dest,
+        -:  553:			const wchar_t *__restrict __src) __THROW;
+        -:  554:
+        -:  555:/* Copy no more than N characters of SRC to DEST, returning the address of
+        -:  556:   the last character written into DEST.  */
+        -:  557:extern wchar_t *wcpncpy (wchar_t *__restrict __dest,
+        -:  558:			 const wchar_t *__restrict __src, size_t __n)
+        -:  559:     __THROW;
+        -:  560:#endif
+        -:  561:
+        -:  562:
+        -:  563:/* Wide character I/O functions.  */
+        -:  564:
+        -:  565:#if defined __USE_XOPEN2K8 || __GLIBC_USE (LIB_EXT2)
+        -:  566:# ifndef __attr_dealloc_fclose
+        -:  567:#   if defined __has_builtin
+        -:  568:#     if __has_builtin (__builtin_fclose)
+        -:  569:/* If the attribute macro hasn't been defined yet (by <stdio.h>) and
+        -:  570:   fclose is a built-in, use it.  */
+        -:  571:#      define __attr_dealloc_fclose __attr_dealloc (__builtin_fclose, 1)
+        -:  572:#     endif
+        -:  573:#   endif
+        -:  574:# endif
+        -:  575:# ifndef __attr_dealloc_fclose
+        -:  576:#  define __attr_dealloc_fclose /* empty */
+        -:  577:# endif
+        -:  578:
+        -:  579:/* Like OPEN_MEMSTREAM, but the stream is wide oriented and produces
+        -:  580:   a wide character string.  */
+        -:  581:extern __FILE *open_wmemstream (wchar_t **__bufloc, size_t *__sizeloc) __THROW
+        -:  582:  __attribute_malloc__ __attr_dealloc_fclose;
+        -:  583:#endif
+        -:  584:
+        -:  585:#if defined __USE_ISOC95 || defined __USE_UNIX98
+        -:  586:
+        -:  587:/* Select orientation for stream.  */
+        -:  588:extern int fwide (__FILE *__fp, int __mode) __THROW;
+        -:  589:
+        -:  590:
+        -:  591:/* Write formatted output to STREAM.
+        -:  592:
+        -:  593:   This function is a possible cancellation point and therefore not
+        -:  594:   marked with __THROW.  */
+        -:  595:extern int fwprintf (__FILE *__restrict __stream,
+        -:  596:		     const wchar_t *__restrict __format, ...)
+        -:  597:     /* __attribute__ ((__format__ (__wprintf__, 2, 3))) */;
+        -:  598:/* Write formatted output to stdout.
+        -:  599:
+        -:  600:   This function is a possible cancellation point and therefore not
+        -:  601:   marked with __THROW.  */
+        -:  602:extern int wprintf (const wchar_t *__restrict __format, ...)
+        -:  603:     /* __attribute__ ((__format__ (__wprintf__, 1, 2))) */;
+        -:  604:/* Write formatted output of at most N characters to S.  */
+        -:  605:extern int swprintf (wchar_t *__restrict __s, size_t __n,
+        -:  606:		     const wchar_t *__restrict __format, ...)
+        -:  607:     __THROW /* __attribute__ ((__format__ (__wprintf__, 3, 4))) */;
+        -:  608:
+        -:  609:/* Write formatted output to S from argument list ARG.
+        -:  610:
+        -:  611:   This function is a possible cancellation point and therefore not
+        -:  612:   marked with __THROW.  */
+        -:  613:extern int vfwprintf (__FILE *__restrict __s,
+        -:  614:		      const wchar_t *__restrict __format,
+        -:  615:		      __gnuc_va_list __arg)
+        -:  616:     /* __attribute__ ((__format__ (__wprintf__, 2, 0))) */;
+        -:  617:/* Write formatted output to stdout from argument list ARG.
+        -:  618:
+        -:  619:   This function is a possible cancellation point and therefore not
+        -:  620:   marked with __THROW.  */
+        -:  621:extern int vwprintf (const wchar_t *__restrict __format,
+        -:  622:		     __gnuc_va_list __arg)
+        -:  623:     /* __attribute__ ((__format__ (__wprintf__, 1, 0))) */;
+        -:  624:/* Write formatted output of at most N character to S from argument
+        -:  625:   list ARG.  */
+        -:  626:extern int vswprintf (wchar_t *__restrict __s, size_t __n,
+        -:  627:		      const wchar_t *__restrict __format,
+        -:  628:		      __gnuc_va_list __arg)
+        -:  629:     __THROW /* __attribute__ ((__format__ (__wprintf__, 3, 0))) */;
+        -:  630:
+        -:  631:
+        -:  632:/* Read formatted input from STREAM.
+        -:  633:
+        -:  634:   This function is a possible cancellation point and therefore not
+        -:  635:   marked with __THROW.  */
+        -:  636:extern int fwscanf (__FILE *__restrict __stream,
+        -:  637:		    const wchar_t *__restrict __format, ...)
+        -:  638:     /* __attribute__ ((__format__ (__wscanf__, 2, 3))) */;
+        -:  639:/* Read formatted input from stdin.
+        -:  640:
+        -:  641:   This function is a possible cancellation point and therefore not
+        -:  642:   marked with __THROW.  */
+        -:  643:extern int wscanf (const wchar_t *__restrict __format, ...)
+        -:  644:     /* __attribute__ ((__format__ (__wscanf__, 1, 2))) */;
+        -:  645:/* Read formatted input from S.  */
+        -:  646:extern int swscanf (const wchar_t *__restrict __s,
+        -:  647:		    const wchar_t *__restrict __format, ...)
+        -:  648:     __THROW /* __attribute__ ((__format__ (__wscanf__, 2, 3))) */;
+        -:  649:
+        -:  650:/* For historical reasons, the C99-compliant versions of the scanf
+        -:  651:   functions are at alternative names.  When __LDBL_COMPAT or
+        -:  652:   __LDOUBLE_REDIRECTS_TO_FLOAT128_ABI are in effect, this is handled in
+        -:  653:   bits/wchar-ldbl.h.  */
+        -:  654:#if !__GLIBC_USE (DEPRECATED_SCANF) && !defined __LDBL_COMPAT \
+        -:  655:     && __LDOUBLE_REDIRECTS_TO_FLOAT128_ABI == 0
+        -:  656:#  ifdef __REDIRECT
+        -:  657:extern int __REDIRECT (fwscanf, (__FILE *__restrict __stream,
+        -:  658:				 const wchar_t *__restrict __format, ...),
+        -:  659:		       __isoc99_fwscanf)
+        -:  660:     /* __attribute__ ((__format__ (__wscanf__, 2, 3))) */;
+        -:  661:extern int __REDIRECT (wscanf, (const wchar_t *__restrict __format, ...),
+        -:  662:		       __isoc99_wscanf)
+        -:  663:     /* __attribute__ ((__format__ (__wscanf__, 1, 2))) */;
+        -:  664:extern int __REDIRECT_NTH (swscanf, (const wchar_t *__restrict __s,
+        -:  665:				     const wchar_t *__restrict __format,
+        -:  666:				     ...), __isoc99_swscanf)
+        -:  667:     /* __attribute__ ((__format__ (__wscanf__, 2, 3))) */;
+        -:  668:#  else
+        -:  669:extern int __isoc99_fwscanf (__FILE *__restrict __stream,
+        -:  670:			     const wchar_t *__restrict __format, ...);
+        -:  671:extern int __isoc99_wscanf (const wchar_t *__restrict __format, ...);
+        -:  672:extern int __isoc99_swscanf (const wchar_t *__restrict __s,
+        -:  673:			     const wchar_t *__restrict __format, ...)
+        -:  674:     __THROW;
+        -:  675:#   define fwscanf __isoc99_fwscanf
+        -:  676:#   define wscanf __isoc99_wscanf
+        -:  677:#   define swscanf __isoc99_swscanf
+        -:  678:#  endif
+        -:  679:# endif
+        -:  680:
+        -:  681:#endif /* Use ISO C95, C99 and Unix98. */
+        -:  682:
+        -:  683:#ifdef __USE_ISOC99
+        -:  684:/* Read formatted input from S into argument list ARG.
+        -:  685:
+        -:  686:   This function is a possible cancellation point and therefore not
+        -:  687:   marked with __THROW.  */
+        -:  688:extern int vfwscanf (__FILE *__restrict __s,
+        -:  689:		     const wchar_t *__restrict __format,
+        -:  690:		     __gnuc_va_list __arg)
+        -:  691:     /* __attribute__ ((__format__ (__wscanf__, 2, 0))) */;
+        -:  692:/* Read formatted input from stdin into argument list ARG.
+        -:  693:
+        -:  694:   This function is a possible cancellation point and therefore not
+        -:  695:   marked with __THROW.  */
+        -:  696:extern int vwscanf (const wchar_t *__restrict __format,
+        -:  697:		    __gnuc_va_list __arg)
+        -:  698:     /* __attribute__ ((__format__ (__wscanf__, 1, 0))) */;
+        -:  699:/* Read formatted input from S into argument list ARG.  */
+        -:  700:extern int vswscanf (const wchar_t *__restrict __s,
+        -:  701:		     const wchar_t *__restrict __format,
+        -:  702:		     __gnuc_va_list __arg)
+        -:  703:     __THROW /* __attribute__ ((__format__ (__wscanf__, 2, 0))) */;
+        -:  704:
+        -:  705:/* Same redirection as above for the v*wscanf family.  */
+        -:  706:# if !__GLIBC_USE (DEPRECATED_SCANF) \
+        -:  707:     && (!defined __LDBL_COMPAT || !defined __REDIRECT) \
+        -:  708:     && (defined __STRICT_ANSI__ || defined __USE_XOPEN2K) \
+        -:  709:     && __LDOUBLE_REDIRECTS_TO_FLOAT128_ABI == 0
+        -:  710:#  ifdef __REDIRECT
+        -:  711:extern int __REDIRECT (vfwscanf, (__FILE *__restrict __s,
+        -:  712:				  const wchar_t *__restrict __format,
+        -:  713:				  __gnuc_va_list __arg), __isoc99_vfwscanf)
+        -:  714:     /* __attribute__ ((__format__ (__wscanf__, 2, 0))) */;
+        -:  715:extern int __REDIRECT (vwscanf, (const wchar_t *__restrict __format,
+        -:  716:				 __gnuc_va_list __arg), __isoc99_vwscanf)
+        -:  717:     /* __attribute__ ((__format__ (__wscanf__, 1, 0))) */;
+        -:  718:extern int __REDIRECT_NTH (vswscanf, (const wchar_t *__restrict __s,
+        -:  719:				      const wchar_t *__restrict __format,
+        -:  720:				      __gnuc_va_list __arg), __isoc99_vswscanf)
+        -:  721:     /* __attribute__ ((__format__ (__wscanf__, 2, 0))) */;
+        -:  722:#  else
+        -:  723:extern int __isoc99_vfwscanf (__FILE *__restrict __s,
+        -:  724:			      const wchar_t *__restrict __format,
+        -:  725:			      __gnuc_va_list __arg);
+        -:  726:extern int __isoc99_vwscanf (const wchar_t *__restrict __format,
+        -:  727:			     __gnuc_va_list __arg);
+        -:  728:extern int __isoc99_vswscanf (const wchar_t *__restrict __s,
+        -:  729:			      const wchar_t *__restrict __format,
+        -:  730:			      __gnuc_va_list __arg) __THROW;
+        -:  731:#   define vfwscanf __isoc99_vfwscanf
+        -:  732:#   define vwscanf __isoc99_vwscanf
+        -:  733:#   define vswscanf __isoc99_vswscanf
+        -:  734:#  endif
+        -:  735:# endif
+        -:  736:
+        -:  737:#endif /* Use ISO C99. */
+        -:  738:
+        -:  739:
+        -:  740:/* Read a character from STREAM.
+        -:  741:
+        -:  742:   These functions are possible cancellation points and therefore not
+        -:  743:   marked with __THROW.  */
+        -:  744:extern wint_t fgetwc (__FILE *__stream);
+        -:  745:extern wint_t getwc (__FILE *__stream);
+        -:  746:
+        -:  747:/* Read a character from stdin.
+        -:  748:
+        -:  749:   This function is a possible cancellation point and therefore not
+        -:  750:   marked with __THROW.  */
+        -:  751:extern wint_t getwchar (void);
+        -:  752:
+        -:  753:
+        -:  754:/* Write a character to STREAM.
+        -:  755:
+        -:  756:   These functions are possible cancellation points and therefore not
+        -:  757:   marked with __THROW.  */
+        -:  758:extern wint_t fputwc (wchar_t __wc, __FILE *__stream);
+        -:  759:extern wint_t putwc (wchar_t __wc, __FILE *__stream);
+        -:  760:
+        -:  761:/* Write a character to stdout.
+        -:  762:
+        -:  763:   This function is a possible cancellation point and therefore not
+        -:  764:   marked with __THROW.  */
+        -:  765:extern wint_t putwchar (wchar_t __wc);
+        -:  766:
+        -:  767:
+        -:  768:/* Get a newline-terminated wide character string of finite length
+        -:  769:   from STREAM.
+        -:  770:
+        -:  771:   This function is a possible cancellation point and therefore not
+        -:  772:   marked with __THROW.  */
+        -:  773:extern wchar_t *fgetws (wchar_t *__restrict __ws, int __n,
+        -:  774:			__FILE *__restrict __stream);
+        -:  775:
+        -:  776:/* Write a string to STREAM.
+        -:  777:
+        -:  778:   This function is a possible cancellation point and therefore not
+        -:  779:   marked with __THROW.  */
+        -:  780:extern int fputws (const wchar_t *__restrict __ws,
+        -:  781:		   __FILE *__restrict __stream);
+        -:  782:
+        -:  783:
+        -:  784:/* Push a character back onto the input buffer of STREAM.
+        -:  785:
+        -:  786:   This function is a possible cancellation point and therefore not
+        -:  787:   marked with __THROW.  */
+        -:  788:extern wint_t ungetwc (wint_t __wc, __FILE *__stream);
+        -:  789:
+        -:  790:
+        -:  791:#ifdef __USE_GNU
+        -:  792:/* These are defined to be equivalent to the `char' functions defined
+        -:  793:   in POSIX.1:1996.
+        -:  794:
+        -:  795:   These functions are not part of POSIX and therefore no official
+        -:  796:   cancellation point.  But due to similarity with an POSIX interface
+        -:  797:   or due to the implementation they are cancellation points and
+        -:  798:   therefore not marked with __THROW.  */
+        -:  799:extern wint_t getwc_unlocked (__FILE *__stream);
+        -:  800:extern wint_t getwchar_unlocked (void);
+        -:  801:
+        -:  802:/* This is the wide character version of a GNU extension.
+        -:  803:
+        -:  804:   This function is not part of POSIX and therefore no official
+        -:  805:   cancellation point.  But due to similarity with an POSIX interface
+        -:  806:   or due to the implementation it is a cancellation point and
+        -:  807:   therefore not marked with __THROW.  */
+        -:  808:extern wint_t fgetwc_unlocked (__FILE *__stream);
+        -:  809:
+        -:  810:/* Faster version when locking is not necessary.
+        -:  811:
+        -:  812:   This function is not part of POSIX and therefore no official
+        -:  813:   cancellation point.  But due to similarity with an POSIX interface
+        -:  814:   or due to the implementation it is a cancellation point and
+        -:  815:   therefore not marked with __THROW.  */
+        -:  816:extern wint_t fputwc_unlocked (wchar_t __wc, __FILE *__stream);
+        -:  817:
+        -:  818:/* These are defined to be equivalent to the `char' functions defined
+        -:  819:   in POSIX.1:1996.
+        -:  820:
+        -:  821:   These functions are not part of POSIX and therefore no official
+        -:  822:   cancellation point.  But due to similarity with an POSIX interface
+        -:  823:   or due to the implementation they are cancellation points and
+        -:  824:   therefore not marked with __THROW.  */
+        -:  825:extern wint_t putwc_unlocked (wchar_t __wc, __FILE *__stream);
+        -:  826:extern wint_t putwchar_unlocked (wchar_t __wc);
+        -:  827:
+        -:  828:
+        -:  829:/* This function does the same as `fgetws' but does not lock the stream.
+        -:  830:
+        -:  831:   This function is not part of POSIX and therefore no official
+        -:  832:   cancellation point.  But due to similarity with an POSIX interface
+        -:  833:   or due to the implementation it is a cancellation point and
+        -:  834:   therefore not marked with __THROW.  */
+        -:  835:extern wchar_t *fgetws_unlocked (wchar_t *__restrict __ws, int __n,
+        -:  836:				 __FILE *__restrict __stream);
+        -:  837:
+        -:  838:/* This function does the same as `fputws' but does not lock the stream.
+        -:  839:
+        -:  840:   This function is not part of POSIX and therefore no official
+        -:  841:   cancellation point.  But due to similarity with an POSIX interface
+        -:  842:   or due to the implementation it is a cancellation point and
+        -:  843:   therefore not marked with __THROW.  */
+        -:  844:extern int fputws_unlocked (const wchar_t *__restrict __ws,
+        -:  845:			    __FILE *__restrict __stream);
+        -:  846:#endif
+        -:  847:
+        -:  848:
+        -:  849:/* Format TP into S according to FORMAT.
+        -:  850:   Write no more than MAXSIZE wide characters and return the number
+        -:  851:   of wide characters written, or 0 if it would exceed MAXSIZE.  */
+        -:  852:extern size_t wcsftime (wchar_t *__restrict __s, size_t __maxsize,
+        -:  853:			const wchar_t *__restrict __format,
+        -:  854:			const struct tm *__restrict __tp) __THROW;
+        -:  855:
+        -:  856:# ifdef __USE_GNU
+        -:  857:/* Similar to `wcsftime' but takes the information from
+        -:  858:   the provided locale and not the global locale.  */
+        -:  859:extern size_t wcsftime_l (wchar_t *__restrict __s, size_t __maxsize,
+        -:  860:			  const wchar_t *__restrict __format,
+        -:  861:			  const struct tm *__restrict __tp,
+        -:  862:			  locale_t __loc) __THROW;
+        -:  863:# endif
+        -:  864:
+        -:  865:/* Define some macros helping to catch buffer overflows.  */
+        -:  866:#if __USE_FORTIFY_LEVEL > 0 && defined __fortify_function
+        -:  867:# include <bits/wchar2.h>
+        -:  868:#endif
+        -:  869:
+        -:  870:#include <bits/floatn.h>
+        -:  871:#if defined __LDBL_COMPAT || __LDOUBLE_REDIRECTS_TO_FLOAT128_ABI == 1
+        -:  872:# include <bits/wchar-ldbl.h>
+        -:  873:#endif
+        -:  874:
+        -:  875:__END_DECLS
+        -:  876:
+        -:  877:#endif /* wchar.h  */

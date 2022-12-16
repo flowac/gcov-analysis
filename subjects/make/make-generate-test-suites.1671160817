@@ -1,0 +1,28 @@
+
+Create test suites for /home/test/big-drive//subjects/make/make-matrix-1 in /home/test/big-drive//subjects/make/outputs.alt/v1
+19 faults found
+793 test cases, 213 branches, 279 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 1 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/make/make-matrix-2 in /home/test/big-drive//subjects/make/outputs.alt/v2
+6 faults found
+793 test cases, 2579 branches, 2806 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 9 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/make/make-matrix-3 in /home/test/big-drive//subjects/make/outputs.alt/v3
+5 faults found
+793 test cases, 1374 branches, 1601 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 7 times 100 unique random test suites
+
+Create test suites for /home/test/big-drive//subjects/make/make-matrix-4 in /home/test/big-drive//subjects/make/outputs.alt/v4
+5 faults found
+793 test cases, 1637 branches, 1880 statements found
+Generate 100 statement coverage test suites
+Generate 100 branch coverage test suites
+Generate 7 times 100 unique random test suites

@@ -1,0 +1,4706 @@
+        -:    0:Source:regcomp.c
+        -:    0:Graph:sed.gcno
+        -:    0:Data:sed.gcda
+        -:    0:Runs:370
+        -:    1:/* Extended regular expression matching and search library.
+        -:    2:   Copyright (C) 2002 Free Software Foundation, Inc.
+        -:    3:   This file is part of the GNU C Library.
+        -:    4:   Contributed by Isamu Hasegawa <isamu@yamato.ibm.com>.
+        -:    5:
+        -:    6:   The GNU C Library is free software; you can redistribute it and/or
+        -:    7:   modify it under the terms of the GNU Lesser General Public
+        -:    8:   License as published by the Free Software Foundation; either
+        -:    9:   version 2.1 of the License, or (at your option) any later version.
+        -:   10:
+        -:   11:   The GNU C Library is distributed in the hope that it will be useful,
+        -:   12:   but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13:   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+        -:   14:   Lesser General Public License for more details.
+        -:   15:
+        -:   16:   You should have received a copy of the GNU Lesser General Public
+        -:   17:   License along with the GNU C Library; if not, write to the Free
+        -:   18:   Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+        -:   19:   02111-1307 USA.  */
+        -:   20:
+        -:   21:static void re_compile_fastmap_iter (regex_t *bufp,
+        -:   22:				     const re_dfastate_t *init_state,
+        -:   23:				     char *fastmap);
+        -:   24:static reg_errcode_t init_dfa (re_dfa_t *dfa, int pat_len);
+        -:   25:static reg_errcode_t init_word_char (re_dfa_t *dfa);
+        -:   26:#ifdef RE_ENABLE_I18N
+        -:   27:static void free_charset (re_charset_t *cset);
+        -:   28:#endif /* RE_ENABLE_I18N */
+        -:   29:static void free_workarea_compile (regex_t *preg);
+        -:   30:static reg_errcode_t create_initial_state (re_dfa_t *dfa);
+        -:   31:static reg_errcode_t analyze (re_dfa_t *dfa);
+        -:   32:static reg_errcode_t analyze_tree (re_dfa_t *dfa, bin_tree_t *node);
+        -:   33:static void calc_first (re_dfa_t *dfa, bin_tree_t *node);
+        -:   34:static void calc_next (re_dfa_t *dfa, bin_tree_t *node);
+        -:   35:static void calc_epsdest (re_dfa_t *dfa, bin_tree_t *node);
+        -:   36:static reg_errcode_t duplicate_node_closure (re_dfa_t *dfa, int top_org_node,
+        -:   37:					     int top_clone_node, int root_node,
+        -:   38:					     unsigned int constraint);
+        -:   39:static reg_errcode_t duplicate_node (int *new_idx, re_dfa_t *dfa, int org_idx,
+        -:   40:				     unsigned int constraint);
+        -:   41:static reg_errcode_t calc_eclosure (re_dfa_t *dfa);
+        -:   42:static reg_errcode_t calc_eclosure_iter (re_node_set *new_set, re_dfa_t *dfa,
+        -:   43:					 int node, int root);
+        -:   44:static void calc_inveclosure (re_dfa_t *dfa);
+        -:   45:static int fetch_number (re_string_t *input, re_token_t *token,
+        -:   46:			 reg_syntax_t syntax);
+        -:   47:static re_token_t fetch_token (re_string_t *input, reg_syntax_t syntax);
+        -:   48:static int peek_token (re_token_t *token, re_string_t *input,
+        -:   49:			reg_syntax_t syntax);
+        -:   50:static int peek_token_bracket (re_token_t *token, re_string_t *input,
+        -:   51:			       reg_syntax_t syntax);
+        -:   52:static bin_tree_t *parse (re_string_t *regexp, regex_t *preg,
+        -:   53:			  reg_syntax_t syntax, reg_errcode_t *err);
+        -:   54:static bin_tree_t *parse_reg_exp (re_string_t *regexp, regex_t *preg,
+        -:   55:				  re_token_t *token, reg_syntax_t syntax,
+        -:   56:				  int nest, reg_errcode_t *err);
+        -:   57:static bin_tree_t *parse_branch (re_string_t *regexp, regex_t *preg,
+        -:   58:				 re_token_t *token, reg_syntax_t syntax,
+        -:   59:				 int nest, reg_errcode_t *err);
+        -:   60:static bin_tree_t *parse_expression (re_string_t *regexp, regex_t *preg,
+        -:   61:				     re_token_t *token, reg_syntax_t syntax,
+        -:   62:				     int nest, reg_errcode_t *err);
+        -:   63:static bin_tree_t *parse_sub_exp (re_string_t *regexp, regex_t *preg,
+        -:   64:				  re_token_t *token, reg_syntax_t syntax,
+        -:   65:				  int nest, reg_errcode_t *err);
+        -:   66:static bin_tree_t *parse_dup_op (bin_tree_t *dup_elem, re_string_t *regexp,
+        -:   67:				 re_dfa_t *dfa, re_token_t *token,
+        -:   68:				 reg_syntax_t syntax, reg_errcode_t *err);
+        -:   69:static bin_tree_t *parse_bracket_exp (re_string_t *regexp, re_dfa_t *dfa,
+        -:   70:				      re_token_t *token, reg_syntax_t syntax,
+        -:   71:				      reg_errcode_t *err);
+        -:   72:static reg_errcode_t parse_bracket_element (bracket_elem_t *elem,
+        -:   73:					    re_string_t *regexp,
+        -:   74:					    re_token_t *token, int token_len,
+        -:   75:					    re_dfa_t *dfa,
+        -:   76:					    reg_syntax_t syntax);
+        -:   77:static reg_errcode_t parse_bracket_symbol (bracket_elem_t *elem,
+        -:   78:					  re_string_t *regexp,
+        -:   79:					  re_token_t *token);
+        -:   80:#ifndef _LIBC
+        -:   81:# ifdef RE_ENABLE_I18N
+        -:   82:static reg_errcode_t build_range_exp (re_bitset_ptr_t sbcset,
+        -:   83:				      re_charset_t *mbcset, int *range_alloc,
+        -:   84:				      bracket_elem_t *start_elem,
+        -:   85:				      bracket_elem_t *end_elem);
+        -:   86:static reg_errcode_t build_collating_symbol (re_bitset_ptr_t sbcset,
+        -:   87:					     re_charset_t *mbcset,
+        -:   88:					     int *coll_sym_alloc,
+        -:   89:					     const unsigned char *name);
+        -:   90:# else /* not RE_ENABLE_I18N */
+        -:   91:static reg_errcode_t build_range_exp (re_bitset_ptr_t sbcset,
+        -:   92:				      bracket_elem_t *start_elem,
+        -:   93:				      bracket_elem_t *end_elem);
+        -:   94:static reg_errcode_t build_collating_symbol (re_bitset_ptr_t sbcset,
+        -:   95:					     const unsigned char *name);
+        -:   96:# endif /* not RE_ENABLE_I18N */
+        -:   97:#endif /* not _LIBC */
+        -:   98:#ifdef RE_ENABLE_I18N
+        -:   99:static reg_errcode_t build_equiv_class (re_bitset_ptr_t sbcset,
+        -:  100:					re_charset_t *mbcset,
+        -:  101:					int *equiv_class_alloc,
+        -:  102:					const unsigned char *name);
+        -:  103:static reg_errcode_t build_charclass (re_bitset_ptr_t sbcset,
+        -:  104:				      re_charset_t *mbcset,
+        -:  105:				      int *char_class_alloc,
+        -:  106:				      const unsigned char *class_name,
+        -:  107:				      reg_syntax_t syntax);
+        -:  108:#else  /* not RE_ENABLE_I18N */
+        -:  109:static reg_errcode_t build_equiv_class (re_bitset_ptr_t sbcset,
+        -:  110:					const unsigned char *name);
+        -:  111:static reg_errcode_t build_charclass (re_bitset_ptr_t sbcset,
+        -:  112:				      const unsigned char *class_name,
+        -:  113:				      reg_syntax_t syntax);
+        -:  114:#endif /* not RE_ENABLE_I18N */
+        -:  115:static bin_tree_t *build_word_op (re_dfa_t *dfa, int not, reg_errcode_t *err);
+        -:  116:static void free_bin_tree (bin_tree_t *tree);
+        -:  117:static bin_tree_t *create_tree (bin_tree_t *left, bin_tree_t *right,
+        -:  118:				re_token_type_t type, int index);
+        -:  119:static bin_tree_t *duplicate_tree (const bin_tree_t *src, re_dfa_t *dfa);
+        -:  120:
+        -:  121:/* This table gives an error message for each of the error codes listed
+        -:  122:   in regex.h.  Obviously the order here has to be same as there.
+        -:  123:   POSIX doesn't require that we do anything for REG_NOERROR,
+        -:  124:   but why not be nice?  */
+        -:  125:
+        -:  126:const char __re_error_msgid[] attribute_hidden =
+        -:  127:  {
+        -:  128:#define REG_NOERROR_IDX	0
+        -:  129:    gettext_noop ("Success")	/* REG_NOERROR */
+        -:  130:    "\0"
+        -:  131:#define REG_NOMATCH_IDX (REG_NOERROR_IDX + sizeof "Success")
+        -:  132:    gettext_noop ("No match")	/* REG_NOMATCH */
+        -:  133:    "\0"
+        -:  134:#define REG_BADPAT_IDX	(REG_NOMATCH_IDX + sizeof "No match")
+        -:  135:    gettext_noop ("Invalid regular expression") /* REG_BADPAT */
+        -:  136:    "\0"
+        -:  137:#define REG_ECOLLATE_IDX (REG_BADPAT_IDX + sizeof "Invalid regular expression")
+        -:  138:    gettext_noop ("Invalid collation character") /* REG_ECOLLATE */
+        -:  139:    "\0"
+        -:  140:#define REG_ECTYPE_IDX	(REG_ECOLLATE_IDX + sizeof "Invalid collation character")
+        -:  141:    gettext_noop ("Invalid character class name") /* REG_ECTYPE */
+        -:  142:    "\0"
+        -:  143:#define REG_EESCAPE_IDX	(REG_ECTYPE_IDX + sizeof "Invalid character class name")
+        -:  144:    gettext_noop ("Trailing backslash") /* REG_EESCAPE */
+        -:  145:    "\0"
+        -:  146:#define REG_ESUBREG_IDX	(REG_EESCAPE_IDX + sizeof "Trailing backslash")
+        -:  147:    gettext_noop ("Invalid back reference") /* REG_ESUBREG */
+        -:  148:    "\0"
+        -:  149:#define REG_EBRACK_IDX	(REG_ESUBREG_IDX + sizeof "Invalid back reference")
+        -:  150:    gettext_noop ("Unmatched [ or [^")	/* REG_EBRACK */
+        -:  151:    "\0"
+        -:  152:#define REG_EPAREN_IDX	(REG_EBRACK_IDX + sizeof "Unmatched [ or [^")
+        -:  153:    gettext_noop ("Unmatched ( or \\(") /* REG_EPAREN */
+        -:  154:    "\0"
+        -:  155:#define REG_EBRACE_IDX	(REG_EPAREN_IDX + sizeof "Unmatched ( or \\(")
+        -:  156:    gettext_noop ("Unmatched \\{") /* REG_EBRACE */
+        -:  157:    "\0"
+        -:  158:#define REG_BADBR_IDX	(REG_EBRACE_IDX + sizeof "Unmatched \\{")
+        -:  159:    gettext_noop ("Invalid content of \\{\\}") /* REG_BADBR */
+        -:  160:    "\0"
+        -:  161:#define REG_ERANGE_IDX	(REG_BADBR_IDX + sizeof "Invalid content of \\{\\}")
+        -:  162:    gettext_noop ("Invalid range end")	/* REG_ERANGE */
+        -:  163:    "\0"
+        -:  164:#define REG_ESPACE_IDX	(REG_ERANGE_IDX + sizeof "Invalid range end")
+        -:  165:    gettext_noop ("Memory exhausted") /* REG_ESPACE */
+        -:  166:    "\0"
+        -:  167:#define REG_BADRPT_IDX	(REG_ESPACE_IDX + sizeof "Memory exhausted")
+        -:  168:    gettext_noop ("Invalid preceding regular expression") /* REG_BADRPT */
+        -:  169:    "\0"
+        -:  170:#define REG_EEND_IDX	(REG_BADRPT_IDX + sizeof "Invalid preceding regular expression")
+        -:  171:    gettext_noop ("Premature end of regular expression") /* REG_EEND */
+        -:  172:    "\0"
+        -:  173:#define REG_ESIZE_IDX	(REG_EEND_IDX + sizeof "Premature end of regular expression")
+        -:  174:    gettext_noop ("Regular expression too big") /* REG_ESIZE */
+        -:  175:    "\0"
+        -:  176:#define REG_ERPAREN_IDX	(REG_ESIZE_IDX + sizeof "Regular expression too big")
+        -:  177:    gettext_noop ("Unmatched ) or \\)") /* REG_ERPAREN */
+        -:  178:  };
+        -:  179:
+        -:  180:const size_t __re_error_msgid_idx[] attribute_hidden =
+        -:  181:  {
+        -:  182:    REG_NOERROR_IDX,
+        -:  183:    REG_NOMATCH_IDX,
+        -:  184:    REG_BADPAT_IDX,
+        -:  185:    REG_ECOLLATE_IDX,
+        -:  186:    REG_ECTYPE_IDX,
+        -:  187:    REG_EESCAPE_IDX,
+        -:  188:    REG_ESUBREG_IDX,
+        -:  189:    REG_EBRACK_IDX,
+        -:  190:    REG_EPAREN_IDX,
+        -:  191:    REG_EBRACE_IDX,
+        -:  192:    REG_BADBR_IDX,
+        -:  193:    REG_ERANGE_IDX,
+        -:  194:    REG_ESPACE_IDX,
+        -:  195:    REG_BADRPT_IDX,
+        -:  196:    REG_EEND_IDX,
+        -:  197:    REG_ESIZE_IDX,
+        -:  198:    REG_ERPAREN_IDX
+        -:  199:  };
+        -:  200:
+        -:  201:/* Entry points for GNU code.  */
+        -:  202:
+        -:  203:/* re_compile_pattern is the GNU regular expression compiler: it
+        -:  204:   compiles PATTERN (of length LENGTH) and puts the result in BUFP.
+        -:  205:   Returns 0 if the pattern was valid, otherwise an error string.
+        -:  206:
+        -:  207:   Assumes the `allocated' (and perhaps `buffer') and `translate' fields
+        -:  208:   are set in BUFP on entry.  */
+        -:  209:
+        -:  210:const char *
+function re_compile_pattern called 610 returned 100% blocks executed 80%
+      610:  211:re_compile_pattern (pattern, length, bufp)
+        -:  212:    const char *pattern;
+        -:  213:    size_t length;
+        -:  214:    struct re_pattern_buffer *bufp;
+        -:  215:{
+        -:  216:  reg_errcode_t ret;
+        -:  217:
+        -:  218:  /* And GNU code determines whether or not to get register information
+        -:  219:     by passing null for the REGS argument to re_match, etc., not by
+        -:  220:     setting no_sub.  */
+      610:  221:  bufp->no_sub = 0;
+        -:  222:
+        -:  223:  /* Match anchors at newline.  */
+      610:  224:  bufp->newline_anchor = 1;
+        -:  225:
+      610:  226:  ret = re_compile_internal (bufp, pattern, length, re_syntax_options);
+call    0 returned 610
+        -:  227:
+      610:  228:  if (!ret)
+branch  0 taken 610 (fallthrough)
+branch  1 taken 0
+      610:  229:    return NULL;
+    #####:  230:  return gettext (__re_error_msgid + __re_error_msgid_idx[(int) ret]);
+        -:  231:}
+        -:  232:#ifdef _LIBC
+        -:  233:weak_alias (__re_compile_pattern, re_compile_pattern)
+        -:  234:#endif
+        -:  235:
+        -:  236:/* Set by `re_set_syntax' to the current regexp syntax to recognize.  Can
+        -:  237:   also be assigned to arbitrarily: each pattern buffer stores its own
+        -:  238:   syntax, so it can be changed between regex compilations.  */
+        -:  239:/* This has no initializer because initialized variables in Emacs
+        -:  240:   become read-only after dumping.  */
+        -:  241:reg_syntax_t re_syntax_options;
+        -:  242:
+        -:  243:
+        -:  244:/* Specify the precise syntax of regexps for compilation.  This provides
+        -:  245:   for compatibility for various utilities which historically have
+        -:  246:   different, incompatible syntaxes.
+        -:  247:
+        -:  248:   The argument SYNTAX is a bit mask comprised of the various bits
+        -:  249:   defined in regex.h.  We return the old syntax.  */
+        -:  250:
+        -:  251:reg_syntax_t
+function re_set_syntax called 610 returned 100% blocks executed 100%
+      610:  252:re_set_syntax (syntax)
+        -:  253:    reg_syntax_t syntax;
+        -:  254:{
+      610:  255:  reg_syntax_t ret = re_syntax_options;
+        -:  256:
+      610:  257:  re_syntax_options = syntax;
+      610:  258:  return ret;
+        -:  259:}
+        -:  260:#ifdef _LIBC
+        -:  261:weak_alias (__re_set_syntax, re_set_syntax)
+        -:  262:#endif
+        -:  263:
+        -:  264:int
+function re_compile_fastmap called 0 returned 0% blocks executed 0%
+    #####:  265:re_compile_fastmap (bufp)
+        -:  266:    struct re_pattern_buffer *bufp;
+        -:  267:{
+    #####:  268:  re_dfa_t *dfa = (re_dfa_t *) bufp->buffer;
+    #####:  269:  char *fastmap = bufp->fastmap;
+        -:  270:
+    #####:  271:  memset (fastmap, '\0', sizeof (char) * SBC_MAX);
+    #####:  272:  re_compile_fastmap_iter (bufp, dfa->init_state, fastmap);
+call    0 never executed
+    #####:  273:  if (dfa->init_state != dfa->init_state_word)
+branch  0 never executed
+branch  1 never executed
+    #####:  274:    re_compile_fastmap_iter (bufp, dfa->init_state_word, fastmap);
+call    0 never executed
+    #####:  275:  if (dfa->init_state != dfa->init_state_nl)
+branch  0 never executed
+branch  1 never executed
+    #####:  276:    re_compile_fastmap_iter (bufp, dfa->init_state_nl, fastmap);
+call    0 never executed
+    #####:  277:  if (dfa->init_state != dfa->init_state_begbuf)
+branch  0 never executed
+branch  1 never executed
+    #####:  278:    re_compile_fastmap_iter (bufp, dfa->init_state_begbuf, fastmap);
+call    0 never executed
+    #####:  279:  bufp->fastmap_accurate = 1;
+    #####:  280:  return 0;
+        -:  281:}
+        -:  282:#ifdef _LIBC
+        -:  283:weak_alias (__re_compile_fastmap, re_compile_fastmap)
+        -:  284:#endif
+        -:  285:
+        -:  286:static inline void
+function re_set_fastmap called 0 returned 0% blocks executed 0%
+    #####:  287:re_set_fastmap (char *fastmap, int icase, int ch)
+        -:  288:{
+    #####:  289:  fastmap[ch] = 1;
+    #####:  290:  if (icase)
+branch  0 never executed
+branch  1 never executed
+    #####:  291:    fastmap[tolower (ch)] = 1;
+    #####:  292:}
+        -:  293:
+        -:  294:/* Helper function for re_compile_fastmap.
+        -:  295:   Compile fastmap for the initial_state INIT_STATE.  */
+        -:  296:
+        -:  297:static void
+function re_compile_fastmap_iter called 0 returned 0% blocks executed 0%
+    #####:  298:re_compile_fastmap_iter (bufp, init_state, fastmap)
+        -:  299:     regex_t *bufp;
+        -:  300:     const re_dfastate_t *init_state;
+        -:  301:     char *fastmap;
+        -:  302:{
+    #####:  303:  re_dfa_t *dfa = (re_dfa_t *) bufp->buffer;
+        -:  304:  int node_cnt;
+    #####:  305:  int icase = (MB_CUR_MAX == 1 && (bufp->syntax & RE_ICASE));
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+branch  4 never executed
+    #####:  306:  for (node_cnt = 0; node_cnt < init_state->nodes.nelem; ++node_cnt)
+branch  0 never executed
+branch  1 never executed
+        -:  307:    {
+    #####:  308:      int node = init_state->nodes.elems[node_cnt];
+    #####:  309:      re_token_type_t type = dfa->nodes[node].type;
+        -:  310:
+    #####:  311:      if (type == CHARACTER)
+branch  0 never executed
+branch  1 never executed
+    #####:  312:	re_set_fastmap (fastmap, icase, dfa->nodes[node].opr.c);
+call    0 never executed
+    #####:  313:      else if (type == SIMPLE_BRACKET)
+branch  0 never executed
+branch  1 never executed
+        -:  314:	{
+        -:  315:	  int i, j, ch;
+    #####:  316:	  for (i = 0, ch = 0; i < BITSET_UINTS; ++i)
+branch  0 never executed
+branch  1 never executed
+    #####:  317:	    for (j = 0; j < UINT_BITS; ++j, ++ch)
+branch  0 never executed
+branch  1 never executed
+    #####:  318:	      if (dfa->nodes[node].opr.sbcset[i] & (1 << j))
+branch  0 never executed
+branch  1 never executed
+    #####:  319:		re_set_fastmap (fastmap, icase, ch);
+call    0 never executed
+        -:  320:	}
+        -:  321:#ifdef RE_ENABLE_I18N
+        -:  322:      else if (type == COMPLEX_BRACKET)
+        -:  323:	{
+        -:  324:	  int i;
+        -:  325:	  re_charset_t *cset = dfa->nodes[node].opr.mbcset;
+        -:  326:	  if (cset->non_match || cset->ncoll_syms || cset->nequiv_classes
+        -:  327:	      || cset->nranges || cset->nchar_classes)
+        -:  328:	    {
+        -:  329:# ifdef _LIBC
+        -:  330:	      if (_NL_CURRENT_WORD (LC_COLLATE, _NL_COLLATE_NRULES) != 0)
+        -:  331:		{
+        -:  332:		  /* In this case we want to catch the bytes which are
+        -:  333:		     the first byte of any collation elements.
+        -:  334:		     e.g. In da_DK, we want to catch 'a' since "aa"
+        -:  335:			  is a valid collation element, and don't catch
+        -:  336:			  'b' since 'b' is the only collation element
+        -:  337:			  which starts from 'b'.  */
+        -:  338:		  int j, ch;
+        -:  339:		  const int32_t *table = (const int32_t *)
+        -:  340:		    _NL_CURRENT (LC_COLLATE, _NL_COLLATE_TABLEMB);
+        -:  341:		  for (i = 0, ch = 0; i < BITSET_UINTS; ++i)
+        -:  342:		    for (j = 0; j < UINT_BITS; ++j, ++ch)
+        -:  343:		      if (table[ch] < 0)
+        -:  344:			re_set_fastmap (fastmap, icase, ch);
+        -:  345:		}
+        -:  346:# else
+        -:  347:	      if (MB_CUR_MAX > 1)
+        -:  348:		for (i = 0; i < SBC_MAX; ++i)
+        -:  349:		  if (__btowc (i) == WEOF)
+        -:  350:		    re_set_fastmap (fastmap, icase, i);
+        -:  351:# endif /* not _LIBC */
+        -:  352:	    }
+        -:  353:	  for (i = 0; i < cset->nmbchars; ++i)
+        -:  354:	    {
+        -:  355:	      char buf[256];
+        -:  356:	      mbstate_t state;
+        -:  357:	      memset (&state, '\0', sizeof (state));
+        -:  358:	      wcrtomb (buf, cset->mbchars[i], &state);
+        -:  359:	      re_set_fastmap (fastmap, icase, *(unsigned char *) buf);
+        -:  360:	    }
+        -:  361:	}
+        -:  362:#endif /* RE_ENABLE_I18N */
+    #####:  363:      else if (type == END_OF_RE || type == OP_PERIOD)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -:  364:	{
+    #####:  365:	  memset (fastmap, '\1', sizeof (char) * SBC_MAX);
+    #####:  366:	  if (type == END_OF_RE)
+branch  0 never executed
+branch  1 never executed
+    #####:  367:	    bufp->can_be_null = 1;
+    #####:  368:	  return;
+        -:  369:	}
+        -:  370:    }
+        -:  371:}
+        -:  372:
+        -:  373:/* Entry point for POSIX code.  */
+        -:  374:/* regcomp takes a regular expression as a string and compiles it.
+        -:  375:
+        -:  376:   PREG is a regex_t *.  We do not expect any fields to be initialized,
+        -:  377:   since POSIX says we shouldn't.  Thus, we set
+        -:  378:
+        -:  379:     `buffer' to the compiled pattern;
+        -:  380:     `used' to the length of the compiled pattern;
+        -:  381:     `syntax' to RE_SYNTAX_POSIX_EXTENDED if the
+        -:  382:       REG_EXTENDED bit in CFLAGS is set; otherwise, to
+        -:  383:       RE_SYNTAX_POSIX_BASIC;
+        -:  384:     `newline_anchor' to REG_NEWLINE being set in CFLAGS;
+        -:  385:     `fastmap' to an allocated space for the fastmap;
+        -:  386:     `fastmap_accurate' to zero;
+        -:  387:     `re_nsub' to the number of subexpressions in PATTERN.
+        -:  388:
+        -:  389:   PATTERN is the address of the pattern string.
+        -:  390:
+        -:  391:   CFLAGS is a series of bits which affect compilation.
+        -:  392:
+        -:  393:     If REG_EXTENDED is set, we use POSIX extended syntax; otherwise, we
+        -:  394:     use POSIX basic syntax.
+        -:  395:
+        -:  396:     If REG_NEWLINE is set, then . and [^...] don't match newline.
+        -:  397:     Also, regexec will try a match beginning after every newline.
+        -:  398:
+        -:  399:     If REG_ICASE is set, then we considers upper- and lowercase
+        -:  400:     versions of letters to be equivalent when matching.
+        -:  401:
+        -:  402:     If REG_NOSUB is set, then when PREG is passed to regexec, that
+        -:  403:     routine will report only success or failure, and nothing about the
+        -:  404:     registers.
+        -:  405:
+        -:  406:   It returns 0 if it succeeds, nonzero if it doesn't.  (See regex.h for
+        -:  407:   the return codes and their meanings.)  */
+        -:  408:
+        -:  409:int
+function regcomp called 0 returned 0% blocks executed 0%
+    #####:  410:regcomp (preg, pattern, cflags)
+        -:  411:    regex_t *__restrict preg;
+        -:  412:    const char *__restrict pattern;
+        -:  413:    int cflags;
+        -:  414:{
+        -:  415:  reg_errcode_t ret;
+    #####:  416:  reg_syntax_t syntax = ((cflags & REG_EXTENDED) ? RE_SYNTAX_POSIX_EXTENDED
+    #####:  417:			 : RE_SYNTAX_POSIX_BASIC);
+branch  0 never executed
+branch  1 never executed
+        -:  418:
+    #####:  419:  preg->buffer = NULL;
+    #####:  420:  preg->allocated = 0;
+    #####:  421:  preg->used = 0;
+        -:  422:
+        -:  423:  /* Try to allocate space for the fastmap.  */
+    #####:  424:  preg->fastmap = re_malloc (char, SBC_MAX);
+    #####:  425:  if (BE (preg->fastmap == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+    #####:  426:    return REG_ESPACE;
+        -:  427:
+    #####:  428:  syntax |= (cflags & REG_ICASE) ? RE_ICASE : 0;
+        -:  429:
+        -:  430:  /* If REG_NEWLINE is set, newlines are treated differently.  */
+    #####:  431:  if (cflags & REG_NEWLINE)
+branch  0 never executed
+branch  1 never executed
+        -:  432:    { /* REG_NEWLINE implies neither . nor [^...] match newline.  */
+    #####:  433:      syntax &= ~RE_DOT_NEWLINE;
+    #####:  434:      syntax |= RE_HAT_LISTS_NOT_NEWLINE;
+        -:  435:      /* It also changes the matching behavior.  */
+    #####:  436:      preg->newline_anchor = 1;
+        -:  437:    }
+        -:  438:  else
+    #####:  439:    preg->newline_anchor = 0;
+    #####:  440:  preg->no_sub = !!(cflags & REG_NOSUB);
+    #####:  441:  preg->translate = NULL;
+        -:  442:
+    #####:  443:  ret = re_compile_internal (preg, pattern, strlen (pattern), syntax);
+call    0 never executed
+        -:  444:
+        -:  445:  /* POSIX doesn't distinguish between an unmatched open-group and an
+        -:  446:     unmatched close-group: both are REG_EPAREN.  */
+    #####:  447:  if (ret == REG_ERPAREN)
+branch  0 never executed
+branch  1 never executed
+    #####:  448:    ret = REG_EPAREN;
+        -:  449:
+        -:  450:  /* We have already checked preg->fastmap != NULL.  */
+    #####:  451:  if (BE (ret == REG_NOERROR, 1))
+branch  0 never executed
+branch  1 never executed
+        -:  452:    /* Compute the fastmap now, since regexec cannot modify the pattern
+        -:  453:       buffer.  This function nevers fails in this implementation.  */
+    #####:  454:    (void) re_compile_fastmap (preg);
+call    0 never executed
+        -:  455:  else
+        -:  456:    {
+        -:  457:      /* Some error occurred while compiling the expression.  */
+    #####:  458:      re_free (preg->fastmap);
+    #####:  459:      preg->fastmap = NULL;
+        -:  460:    }
+        -:  461:
+    #####:  462:  return (int) ret;
+        -:  463:}
+        -:  464:#ifdef _LIBC
+        -:  465:weak_alias (__regcomp, regcomp)
+        -:  466:#endif
+        -:  467:
+        -:  468:/* Returns a message corresponding to an error code, ERRCODE, returned
+        -:  469:   from either regcomp or regexec.   We don't use PREG here.  */
+        -:  470:
+        -:  471:size_t
+function regerror called 0 returned 0% blocks executed 0%
+    #####:  472:regerror (errcode, preg, errbuf, errbuf_size)
+        -:  473:    int errcode;
+        -:  474:    const regex_t *preg;
+        -:  475:    char *errbuf;
+        -:  476:    size_t errbuf_size;
+        -:  477:{
+        -:  478:  const char *msg;
+        -:  479:  size_t msg_size;
+        -:  480:
+    #####:  481:  if (BE (errcode < 0
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -:  482:	  || errcode >= (int) (sizeof (__re_error_msgid_idx)
+        -:  483:			       / sizeof (__re_error_msgid_idx[0])), 0))
+        -:  484:    /* Only error codes returned by the rest of the code should be passed
+        -:  485:       to this routine.  If we are given anything else, or if other regex
+        -:  486:       code generates an invalid error code, then the program has a bug.
+        -:  487:       Dump core so we can fix it.  */
+    #####:  488:    abort ();
+call    0 never executed
+        -:  489:
+    #####:  490:  msg = gettext (__re_error_msgid + __re_error_msgid_idx[errcode]);
+        -:  491:
+    #####:  492:  msg_size = strlen (msg) + 1; /* Includes the null.  */
+        -:  493:
+    #####:  494:  if (BE (errbuf_size != 0, 1))
+branch  0 never executed
+branch  1 never executed
+        -:  495:    {
+    #####:  496:      if (BE (msg_size > errbuf_size, 0))
+branch  0 never executed
+branch  1 never executed
+        -:  497:	{
+        -:  498:#if defined HAVE_MEMPCPY || defined _LIBC
+        -:  499:	  *((char *) __mempcpy (errbuf, msg, errbuf_size - 1)) = '\0';
+        -:  500:#else
+    #####:  501:	  memcpy (errbuf, msg, errbuf_size - 1);
+    #####:  502:	  errbuf[errbuf_size - 1] = 0;
+        -:  503:#endif
+        -:  504:	}
+        -:  505:      else
+    #####:  506:	memcpy (errbuf, msg, msg_size);
+        -:  507:    }
+        -:  508:
+    #####:  509:  return msg_size;
+        -:  510:}
+        -:  511:#ifdef _LIBC
+        -:  512:weak_alias (__regerror, regerror)
+        -:  513:#endif
+        -:  514:
+        -:  515:
+        -:  516:static void
+function free_dfa_content called 0 returned 0% blocks executed 0%
+    #####:  517:free_dfa_content (re_dfa_t *dfa)
+        -:  518:{
+        -:  519:  int i, j;
+        -:  520:
+    #####:  521:  re_free (dfa->subexps);
+        -:  522:
+    #####:  523:  for (i = 0; i < dfa->nodes_len; ++i)
+branch  0 never executed
+branch  1 never executed
+        -:  524:    {
+    #####:  525:      re_token_t *node = dfa->nodes + i;
+        -:  526:#ifdef RE_ENABLE_I18N
+        -:  527:      if (node->type == COMPLEX_BRACKET && node->duplicated == 0)
+        -:  528:	free_charset (node->opr.mbcset);
+        -:  529:      else
+        -:  530:#endif /* RE_ENABLE_I18N */
+    #####:  531:	if (node->type == SIMPLE_BRACKET && node->duplicated == 0)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####:  532:	  re_free (node->opr.sbcset);
+        -:  533:    }
+    #####:  534:  re_free (dfa->nexts);
+    #####:  535:  for (i = 0; i < dfa->nodes_len; ++i)
+branch  0 never executed
+branch  1 never executed
+        -:  536:    {
+    #####:  537:      if (dfa->eclosures != NULL)
+branch  0 never executed
+branch  1 never executed
+    #####:  538:	re_node_set_free (dfa->eclosures + i);
+    #####:  539:      if (dfa->inveclosures != NULL)
+branch  0 never executed
+branch  1 never executed
+    #####:  540:	re_node_set_free (dfa->inveclosures + i);
+    #####:  541:      if (dfa->edests != NULL)
+branch  0 never executed
+branch  1 never executed
+    #####:  542:	re_node_set_free (dfa->edests + i);
+        -:  543:    }
+    #####:  544:  re_free (dfa->edests);
+    #####:  545:  re_free (dfa->eclosures);
+    #####:  546:  re_free (dfa->inveclosures);
+    #####:  547:  re_free (dfa->nodes);
+        -:  548:
+    #####:  549:  for (i = 0; i <= dfa->state_hash_mask; ++i)
+branch  0 never executed
+branch  1 never executed
+        -:  550:    {
+    #####:  551:      struct re_state_table_entry *entry = dfa->state_table + i;
+    #####:  552:      for (j = 0; j < entry->num; ++j)
+branch  0 never executed
+branch  1 never executed
+        -:  553:	{
+    #####:  554:	  re_dfastate_t *state = entry->array[j];
+    #####:  555:	  free_state (state);
+call    0 never executed
+        -:  556:	}
+    #####:  557:      re_free (entry->array);
+        -:  558:    }
+    #####:  559:  re_free (dfa->state_table);
+        -:  560:
+    #####:  561:  if (dfa->word_char != NULL)
+branch  0 never executed
+branch  1 never executed
+    #####:  562:    re_free (dfa->word_char);
+        -:  563:#ifdef DEBUG
+        -:  564:  re_free (dfa->re_str);
+        -:  565:#endif
+        -:  566:
+    #####:  567:  re_free (dfa);
+    #####:  568:}
+        -:  569:
+        -:  570:
+        -:  571:/* Free dynamically allocated space used by PREG.  */
+        -:  572:
+        -:  573:void
+function regfree called 0 returned 0% blocks executed 0%
+    #####:  574:regfree (preg)
+        -:  575:    regex_t *preg;
+        -:  576:{
+    #####:  577:  re_dfa_t *dfa = (re_dfa_t *) preg->buffer;
+    #####:  578:  if (BE (dfa != NULL, 1))
+branch  0 never executed
+branch  1 never executed
+    #####:  579:    free_dfa_content (dfa);
+call    0 never executed
+        -:  580:
+    #####:  581:  re_free (preg->fastmap);
+    #####:  582:}
+        -:  583:#ifdef _LIBC
+        -:  584:weak_alias (__regfree, regfree)
+        -:  585:#endif
+        -:  586:
+        -:  587:/* Entry points compatible with 4.2 BSD regex library.  We don't define
+        -:  588:   them unless specifically requested.  */
+        -:  589:
+        -:  590:#if defined _REGEX_RE_COMP || defined _LIBC
+        -:  591:
+        -:  592:/* BSD has one and only one pattern buffer.  */
+        -:  593:static struct re_pattern_buffer re_comp_buf;
+        -:  594:
+        -:  595:char *
+        -:  596:# ifdef _LIBC
+        -:  597:/* Make these definitions weak in libc, so POSIX programs can redefine
+        -:  598:   these names if they don't use our functions, and still use
+        -:  599:   regcomp/regexec above without link errors.  */
+        -:  600:weak_function
+        -:  601:# endif
+        -:  602:re_comp (s)
+        -:  603:     const char *s;
+        -:  604:{
+        -:  605:  reg_errcode_t ret;
+        -:  606:  char *fastmap;
+        -:  607:
+        -:  608:  if (!s)
+        -:  609:    {
+        -:  610:      if (!re_comp_buf.buffer)
+        -:  611:	return gettext ("No previous regular expression");
+        -:  612:      return 0;
+        -:  613:    }
+        -:  614:
+        -:  615:  if (re_comp_buf.buffer)
+        -:  616:    {
+        -:  617:      fastmap = re_comp_buf.fastmap;
+        -:  618:      re_comp_buf.fastmap = NULL;
+        -:  619:      __regfree (&re_comp_buf);
+        -:  620:      memset (&re_comp_buf, '\0', sizeof (re_comp_buf));
+        -:  621:      re_comp_buf.fastmap = fastmap;
+        -:  622:    }
+        -:  623:
+        -:  624:  if (re_comp_buf.fastmap == NULL)
+        -:  625:    {
+        -:  626:      re_comp_buf.fastmap = (char *) malloc (SBC_MAX);
+        -:  627:      if (re_comp_buf.fastmap == NULL)
+        -:  628:	return (char *) gettext (__re_error_msgid
+        -:  629:				 + __re_error_msgid_idx[(int) REG_ESPACE]);
+        -:  630:    }
+        -:  631:
+        -:  632:  /* Since `re_exec' always passes NULL for the `regs' argument, we
+        -:  633:     don't need to initialize the pattern buffer fields which affect it.  */
+        -:  634:
+        -:  635:  /* Match anchors at newlines.  */
+        -:  636:  re_comp_buf.newline_anchor = 1;
+        -:  637:
+        -:  638:  ret = re_compile_internal (&re_comp_buf, s, strlen (s), re_syntax_options);
+        -:  639:
+        -:  640:  if (!ret)
+        -:  641:    return NULL;
+        -:  642:
+        -:  643:  /* Yes, we're discarding `const' here if !HAVE_LIBINTL.  */
+        -:  644:  return (char *) gettext (__re_error_msgid + __re_error_msgid_idx[(int) ret]);
+        -:  645:}
+        -:  646:
+        -:  647:#ifdef _LIBC
+        -:  648:libc_freeres_fn (free_mem)
+        -:  649:{
+        -:  650:  __regfree (&re_comp_buf);
+        -:  651:}
+        -:  652:#endif
+        -:  653:
+        -:  654:#endif /* _REGEX_RE_COMP */
+        -:  655:
+        -:  656:/* Internal entry point.
+        -:  657:   Compile the regular expression PATTERN, whose length is LENGTH.
+        -:  658:   SYNTAX indicate regular expression's syntax.  */
+        -:  659:
+        -:  660:reg_errcode_t
+function re_compile_internal called 610 returned 100% blocks executed 69%
+      610:  661:re_compile_internal (preg, pattern, length, syntax)
+        -:  662:     regex_t *preg;
+        -:  663:     const char * pattern;
+        -:  664:     int length;
+        -:  665:     reg_syntax_t syntax;
+        -:  666:{
+      610:  667:  reg_errcode_t err = REG_NOERROR;
+        -:  668:  re_dfa_t *dfa;
+        -:  669:  re_string_t regexp;
+        -:  670:
+        -:  671:  /* Initialize the pattern buffer.  */
+      610:  672:  preg->fastmap_accurate = 0;
+      610:  673:  preg->syntax = syntax;
+      610:  674:  preg->not_bol = preg->not_eol = 0;
+      610:  675:  preg->used = 0;
+      610:  676:  preg->re_nsub = 0;
+      610:  677:  preg->can_be_null = 0;
+      610:  678:  preg->regs_allocated = REGS_UNALLOCATED;
+        -:  679:
+        -:  680:  /* Initialize the dfa.  */
+      610:  681:  dfa = (re_dfa_t *) preg->buffer;
+      610:  682:  if (preg->allocated < sizeof (re_dfa_t))
+branch  0 taken 610 (fallthrough)
+branch  1 taken 0
+        -:  683:    {
+        -:  684:      /* If zero allocated, but buffer is non-null, try to realloc
+        -:  685:	 enough space.  This loses if buffer's address is bogus, but
+        -:  686:	 that is the user's responsibility.  If ->buffer is NULL this
+        -:  687:	 is a simple allocation.  */
+      610:  688:      dfa = re_realloc (preg->buffer, re_dfa_t, 1);
+      610:  689:      if (dfa == NULL)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+    #####:  690:	return REG_ESPACE;
+      610:  691:      preg->allocated = sizeof (re_dfa_t);
+        -:  692:    }
+      610:  693:  preg->buffer = (unsigned char *) dfa;
+      610:  694:  preg->used = sizeof (re_dfa_t);
+        -:  695:
+      610:  696:  err = init_dfa (dfa, length);
+call    0 returned 610
+      610:  697:  if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+        -:  698:    {
+    #####:  699:      re_free (dfa);
+    #####:  700:      preg->buffer = NULL;
+    #####:  701:      return err;
+        -:  702:    }
+        -:  703:#ifdef DEBUG
+        -:  704:  dfa->re_str = re_malloc (char, length + 1);
+        -:  705:  strncpy (dfa->re_str, pattern, length + 1);
+        -:  706:#endif
+        -:  707:
+     1220:  708:  err = re_string_construct (&regexp, pattern, length, preg->translate,
+      610:  709:			     syntax & RE_ICASE);
+call    0 returned 610
+      610:  710:  if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+        -:  711:    {
+    #####:  712:      re_free (dfa);
+    #####:  713:      preg->buffer = NULL;
+    #####:  714:      return err;
+        -:  715:    }
+        -:  716:
+        -:  717:  /* Parse the regular expression, and build a structure tree.  */
+      610:  718:  preg->re_nsub = 0;
+      610:  719:  dfa->str_tree = parse (&regexp, preg, syntax, &err);
+call    0 returned 610
+      610:  720:  if (BE (dfa->str_tree == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+    #####:  721:    goto re_compile_internal_free_return;
+        -:  722:
+        -:  723:  /* Analyze the tree and collect information which is necessary to
+        -:  724:     create the dfa.  */
+      610:  725:  err = analyze (dfa);
+call    0 returned 610
+      610:  726:  if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+    #####:  727:    goto re_compile_internal_free_return;
+        -:  728:
+        -:  729:  /* Then create the initial state of the dfa.  */
+      610:  730:  err = create_initial_state (dfa);
+call    0 returned 610
+        -:  731:
+        -:  732:  /* Release work areas.  */
+      610:  733:  free_workarea_compile (preg);
+call    0 returned 610
+      610:  734:  re_string_destruct (&regexp);
+call    0 returned 610
+        -:  735:
+      610:  736:  if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+        -:  737:    {
+    #####:  738:    re_compile_internal_free_return:
+    #####:  739:      free_dfa_content (dfa);
+call    0 never executed
+    #####:  740:      preg->buffer = NULL;
+        -:  741:    }
+        -:  742:
+      610:  743:  return err;
+        -:  744:}
+        -:  745:
+        -:  746:/* Initialize DFA.  We use the length of the regular expression PAT_LEN
+        -:  747:   as the initial length of some arrays.  */
+        -:  748:
+        -:  749:static reg_errcode_t
+function init_dfa called 610 returned 100% blocks executed 86%
+      610:  750:init_dfa (dfa, pat_len)
+        -:  751:     re_dfa_t *dfa;
+        -:  752:     int pat_len;
+        -:  753:{
+        -:  754:  int table_size;
+        -:  755:
+      610:  756:  memset (dfa, '\0', sizeof (re_dfa_t));
+        -:  757:
+      610:  758:  dfa->nodes_alloc = pat_len + 1;
+      610:  759:  dfa->nodes = re_malloc (re_token_t, dfa->nodes_alloc);
+        -:  760:
+      610:  761:  dfa->states_alloc = pat_len + 1;
+        -:  762:
+        -:  763:  /*  table_size = 2 ^ ceil(log pat_len) */
+     2225:  764:  for (table_size = 1; table_size > 0; table_size <<= 1)
+branch  0 taken 2225
+branch  1 taken 0 (fallthrough)
+     2225:  765:    if (table_size > pat_len)
+branch  0 taken 610 (fallthrough)
+branch  1 taken 1615
+      610:  766:      break;
+        -:  767:
+      610:  768:  dfa->state_table = calloc (sizeof (struct re_state_table_entry), table_size);
+      610:  769:  dfa->state_hash_mask = table_size - 1;
+        -:  770:
+      610:  771:  dfa->subexps_alloc = 1;
+      610:  772:  dfa->subexps = re_malloc (re_subexp_t, dfa->subexps_alloc);
+      610:  773:  dfa->word_char = NULL;
+        -:  774:
+     610*:  775:  if (BE (dfa->nodes == NULL || dfa->state_table == NULL
+branch  0 taken 610 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 610
+branch  4 taken 610 (fallthrough)
+branch  5 taken 0
+branch  6 taken 0 (fallthrough)
+branch  7 taken 610
+        -:  776:	  || dfa->subexps == NULL, 0))
+        -:  777:    {
+        -:  778:      /* We don't bother to free anything which was allocated.  Very
+        -:  779:	 soon the process will go down anyway.  */
+    #####:  780:      dfa->subexps = NULL;
+    #####:  781:      dfa->state_table = NULL;
+    #####:  782:      dfa->nodes = NULL;
+    #####:  783:      return REG_ESPACE;
+        -:  784:    }
+      610:  785:  return REG_NOERROR;
+        -:  786:}
+        -:  787:
+        -:  788:/* Initialize WORD_CHAR table, which indicate which character is
+        -:  789:   "word".  In this case "word" means that it is the word construction
+        -:  790:   character used by some operators like "\<", "\>", etc.  */
+        -:  791:
+        -:  792:static reg_errcode_t
+function init_word_char called 203 returned 100% blocks executed 92%
+      203:  793:init_word_char (dfa)
+        -:  794:     re_dfa_t *dfa;
+        -:  795:{
+        -:  796:  int i, j, ch;
+      203:  797:  dfa->word_char = (re_bitset_ptr_t) calloc (sizeof (bitset), 1);
+      203:  798:  if (BE (dfa->word_char == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 203
+    #####:  799:    return REG_ESPACE;
+     1827:  800:  for (i = 0, ch = 0; i < BITSET_UINTS; ++i)
+branch  0 taken 1624
+branch  1 taken 203 (fallthrough)
+    53592:  801:    for (j = 0; j < UINT_BITS; ++j, ++ch)
+branch  0 taken 51968
+branch  1 taken 1624 (fallthrough)
+    51968:  802:      if (isalnum (ch) || ch == '_')
+branch  0 taken 39382 (fallthrough)
+branch  1 taken 12586
+branch  2 taken 203 (fallthrough)
+branch  3 taken 39179
+    12789:  803:	dfa->word_char[i] |= 1 << j;
+      203:  804:  return REG_NOERROR;
+        -:  805:}
+        -:  806:
+        -:  807:/* Free the work area which are only used while compiling.  */
+        -:  808:
+        -:  809:static void
+function free_workarea_compile called 610 returned 100% blocks executed 100%
+      610:  810:free_workarea_compile (preg)
+        -:  811:     regex_t *preg;
+        -:  812:{
+      610:  813:  re_dfa_t *dfa = (re_dfa_t *) preg->buffer;
+      610:  814:  free_bin_tree (dfa->str_tree);
+call    0 returned 610
+      610:  815:  dfa->str_tree = NULL;
+      610:  816:}
+        -:  817:
+        -:  818:/* Create initial states for all contexts.  */
+        -:  819:
+        -:  820:static reg_errcode_t
+function create_initial_state called 610 returned 100% blocks executed 45%
+      610:  821:create_initial_state (dfa)
+        -:  822:     re_dfa_t *dfa;
+        -:  823:{
+        -:  824:  int first, i;
+        -:  825:  reg_errcode_t err;
+        -:  826:  re_node_set init_nodes;
+        -:  827:
+        -:  828:  /* Initial states have the epsilon closure of the node which is
+        -:  829:     the first node of the regular expression.  */
+      610:  830:  first = dfa->str_tree->first;
+      610:  831:  dfa->init_node = first;
+      610:  832:  err = re_node_set_init_copy (&init_nodes, dfa->eclosures + first);
+call    0 returned 610
+      610:  833:  if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+    #####:  834:    return err;
+        -:  835:
+        -:  836:  /* The back-references which are in initial states can epsilon transit,
+        -:  837:     since in this case all of the subexpressions can be null.
+        -:  838:     Then we add epsilon closures of the nodes which are the next nodes of
+        -:  839:     the back-references.  */
+      610:  840:  if (dfa->nbackref > 0)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+    #####:  841:    for (i = 0; i < init_nodes.nelem; ++i)
+branch  0 never executed
+branch  1 never executed
+        -:  842:      {
+    #####:  843:	int node_idx = init_nodes.elems[i];
+    #####:  844:	re_token_type_t type = dfa->nodes[node_idx].type;
+        -:  845:
+        -:  846:	int clexp_idx;
+    #####:  847:	if (type != OP_BACK_REF)
+branch  0 never executed
+branch  1 never executed
+    #####:  848:	  continue;
+    #####:  849:	for (clexp_idx = 0; clexp_idx < init_nodes.nelem; ++clexp_idx)
+branch  0 never executed
+branch  1 never executed
+        -:  850:	  {
+        -:  851:	    re_token_t *clexp_node;
+    #####:  852:	    clexp_node = dfa->nodes + init_nodes.elems[clexp_idx];
+    #####:  853:	    if (clexp_node->type == OP_CLOSE_SUBEXP
+branch  0 never executed
+branch  1 never executed
+    #####:  854:		&& clexp_node->opr.idx + 1 == dfa->nodes[node_idx].opr.idx)
+branch  0 never executed
+branch  1 never executed
+    #####:  855:	      break;
+        -:  856:	  }
+    #####:  857:	if (clexp_idx == init_nodes.nelem)
+branch  0 never executed
+branch  1 never executed
+    #####:  858:	  continue;
+        -:  859:
+    #####:  860:	if (type == OP_BACK_REF)
+branch  0 never executed
+branch  1 never executed
+        -:  861:	  {
+    #####:  862:	    int dest_idx = dfa->edests[node_idx].elems[0];
+    #####:  863:	    if (!re_node_set_contains (&init_nodes, dest_idx))
+call    0 never executed
+branch  1 never executed
+branch  2 never executed
+        -:  864:	      {
+    #####:  865:		re_node_set_merge (&init_nodes, dfa->eclosures + dest_idx);
+call    0 never executed
+    #####:  866:		i = 0;
+        -:  867:	      }
+        -:  868:	  }
+        -:  869:      }
+        -:  870:
+        -:  871:  /* It must be the first time to invoke acquire_state.  */
+      610:  872:  dfa->init_state = re_acquire_state_context (&err, dfa, &init_nodes, 0);
+call    0 returned 610
+        -:  873:  /* We don't check ERR here, since the initial state must not be NULL.  */
+      610:  874:  if (BE (dfa->init_state == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+    #####:  875:    return err;
+      610:  876:  if (dfa->init_state->has_constraint)
+branch  0 taken 152 (fallthrough)
+branch  1 taken 458
+        -:  877:    {
+      152:  878:      dfa->init_state_word = re_acquire_state_context (&err, dfa, &init_nodes,
+call    0 returned 152
+        -:  879:						       CONTEXT_WORD);
+      152:  880:      dfa->init_state_nl = re_acquire_state_context (&err, dfa, &init_nodes,
+call    0 returned 152
+        -:  881:						     CONTEXT_NEWLINE);
+      152:  882:      dfa->init_state_begbuf = re_acquire_state_context (&err, dfa,
+call    0 returned 152
+        -:  883:							 &init_nodes,
+        -:  884:							 CONTEXT_NEWLINE
+        -:  885:							 | CONTEXT_BEGBUF);
+     152*:  886:      if (BE (dfa->init_state_word == NULL || dfa->init_state_nl == NULL
+branch  0 taken 152 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 152
+branch  4 taken 152 (fallthrough)
+branch  5 taken 0
+branch  6 taken 0 (fallthrough)
+branch  7 taken 152
+        -:  887:	      || dfa->init_state_begbuf == NULL, 0))
+    #####:  888:	return err;
+        -:  889:    }
+        -:  890:  else
+      458:  891:    dfa->init_state_word = dfa->init_state_nl
+      458:  892:      = dfa->init_state_begbuf = dfa->init_state;
+        -:  893:
+      610:  894:  re_node_set_free (&init_nodes);
+      610:  895:  return REG_NOERROR;
+        -:  896:}
+        -:  897:
+        -:  898:/* Analyze the structure tree, and calculate "first", "next", "edest",
+        -:  899:   "eclosure", and "inveclosure".  */
+        -:  900:
+        -:  901:static reg_errcode_t
+function analyze called 610 returned 100% blocks executed 86%
+      610:  902:analyze (dfa)
+        -:  903:     re_dfa_t *dfa;
+        -:  904:{
+        -:  905:  int i;
+        -:  906:  reg_errcode_t ret;
+        -:  907:
+        -:  908:  /* Allocate arrays.  */
+      610:  909:  dfa->nexts = re_malloc (int, dfa->nodes_alloc);
+      610:  910:  dfa->edests = re_malloc (re_node_set, dfa->nodes_alloc);
+      610:  911:  dfa->eclosures = re_malloc (re_node_set, dfa->nodes_alloc);
+      610:  912:  dfa->inveclosures = re_malloc (re_node_set, dfa->nodes_alloc);
+     610*:  913:  if (BE (dfa->nexts == NULL || dfa->edests == NULL
+branch  0 taken 610 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 610
+branch  4 taken 610 (fallthrough)
+branch  5 taken 0
+branch  6 taken 0 (fallthrough)
+branch  7 taken 610
+branch  8 taken 610 (fallthrough)
+branch  9 taken 0
+branch 10 taken 0 (fallthrough)
+branch 11 taken 610
+        -:  914:	  || dfa->eclosures == NULL || dfa->inveclosures == NULL, 0))
+    #####:  915:    return REG_ESPACE;
+        -:  916:  /* Initialize them.  */
+     3897:  917:  for (i = 0; i < dfa->nodes_len; ++i)
+branch  0 taken 3287
+branch  1 taken 610 (fallthrough)
+        -:  918:    {
+     3287:  919:      dfa->nexts[i] = -1;
+     3287:  920:      re_node_set_init_empty (dfa->edests + i);
+     3287:  921:      re_node_set_init_empty (dfa->eclosures + i);
+     3287:  922:      re_node_set_init_empty (dfa->inveclosures + i);
+        -:  923:    }
+        -:  924:
+      610:  925:  ret = analyze_tree (dfa, dfa->str_tree);
+call    0 returned 610
+      610:  926:  if (BE (ret == REG_NOERROR, 1))
+branch  0 taken 610 (fallthrough)
+branch  1 taken 0
+        -:  927:    {
+      610:  928:      ret = calc_eclosure (dfa);
+call    0 returned 610
+      610:  929:      if (ret == REG_NOERROR)
+branch  0 taken 610 (fallthrough)
+branch  1 taken 0
+      610:  930:	calc_inveclosure (dfa);
+call    0 returned 610
+        -:  931:    }
+      610:  932:  return ret;
+        -:  933:}
+        -:  934:
+        -:  935:/* Helper functions for analyze.
+        -:  936:   This function calculate "first", "next", and "edest" for the subtree
+        -:  937:   whose root is NODE.  */
+        -:  938:
+        -:  939:static reg_errcode_t
+function analyze_tree called 5830 returned 100% blocks executed 88%
+     5830:  940:analyze_tree (dfa, node)
+        -:  941:     re_dfa_t *dfa;
+        -:  942:     bin_tree_t *node;
+        -:  943:{
+        -:  944:  reg_errcode_t ret;
+     5830:  945:  if (node->first == -1)
+branch  0 taken 610 (fallthrough)
+branch  1 taken 5220
+      610:  946:    calc_first (dfa, node);
+call    0 returned 610
+     5830:  947:  if (node->next == -1)
+branch  0 taken 5830 (fallthrough)
+branch  1 taken 0
+     5830:  948:    calc_next (dfa, node);
+call    0 returned 5830
+     5830:  949:  if (node->eclosure.nelem == 0)
+branch  0 taken 5830 (fallthrough)
+branch  1 taken 0
+     5830:  950:    calc_epsdest (dfa, node);
+call    0 returned 5830
+        -:  951:  /* Calculate "first" etc. for the left child.  */
+     5830:  952:  if (node->left != NULL)
+branch  0 taken 2675 (fallthrough)
+branch  1 taken 3155
+        -:  953:    {
+     2675:  954:      ret = analyze_tree (dfa, node->left);
+call    0 returned 2675
+     2675:  955:      if (BE (ret != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2675
+    #####:  956:	return ret;
+        -:  957:    }
+        -:  958:  /* Calculate "first" etc. for the right child.  */
+     5830:  959:  if (node->right != NULL)
+branch  0 taken 2545 (fallthrough)
+branch  1 taken 3285
+        -:  960:    {
+     2545:  961:      ret = analyze_tree (dfa, node->right);
+call    0 returned 2545
+     2545:  962:      if (BE (ret != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2545
+    #####:  963:	return ret;
+        -:  964:    }
+     5830:  965:  return REG_NOERROR;
+        -:  966:}
+        -:  967:
+        -:  968:/* Calculate "first" for the node NODE.  */
+        -:  969:static void
+function calc_first called 5830 returned 100% blocks executed 77%
+     5830:  970:calc_first (dfa, node)
+        -:  971:     re_dfa_t *dfa;
+        -:  972:     bin_tree_t *node;
+        -:  973:{
+        -:  974:  int idx, type;
+     5830:  975:  idx = node->node_idx;
+     5830:  976:  type = (node->type == 0) ? dfa->nodes[idx].type : node->type;
+branch  0 taken 3287 (fallthrough)
+branch  1 taken 2543
+        -:  977:
+     5830:  978:  switch (type)
+branch  0 taken 3285
+branch  1 taken 0
+branch  2 taken 2
+branch  3 taken 2543
+        -:  979:    {
+        -:  980:#ifdef DEBUG
+        -:  981:    case OP_OPEN_BRACKET:
+        -:  982:    case OP_CLOSE_BRACKET:
+        -:  983:    case OP_OPEN_DUP_NUM:
+        -:  984:    case OP_CLOSE_DUP_NUM:
+        -:  985:    case OP_NON_MATCH_LIST:
+        -:  986:    case OP_OPEN_COLL_ELEM:
+        -:  987:    case OP_CLOSE_COLL_ELEM:
+        -:  988:    case OP_OPEN_EQUIV_CLASS:
+        -:  989:    case OP_CLOSE_EQUIV_CLASS:
+        -:  990:    case OP_OPEN_CHAR_CLASS:
+        -:  991:    case OP_CLOSE_CHAR_CLASS:
+        -:  992:      /* These must not be appeared here.  */
+        -:  993:      assert (0);
+        -:  994:#endif
+     3285:  995:    case END_OF_RE:
+        -:  996:    case CHARACTER:
+        -:  997:    case OP_PERIOD:
+        -:  998:    case OP_DUP_ASTERISK:
+        -:  999:    case OP_DUP_QUESTION:
+        -: 1000:#ifdef RE_ENABLE_I18N
+        -: 1001:    case COMPLEX_BRACKET:
+        -: 1002:#endif /* RE_ENABLE_I18N */
+        -: 1003:    case SIMPLE_BRACKET:
+        -: 1004:    case OP_BACK_REF:
+        -: 1005:    case ANCHOR:
+        -: 1006:    case OP_OPEN_SUBEXP:
+        -: 1007:    case OP_CLOSE_SUBEXP:
+     3285: 1008:      node->first = idx;
+     3285: 1009:      break;
+    #####: 1010:    case OP_DUP_PLUS:
+        -: 1011:#ifdef DEBUG
+        -: 1012:      assert (node->left != NULL);
+        -: 1013:#endif
+    #####: 1014:      if (node->left->first == -1)
+branch  0 never executed
+branch  1 never executed
+    #####: 1015:	calc_first (dfa, node->left);
+call    0 never executed
+    #####: 1016:      node->first = node->left->first;
+    #####: 1017:      break;
+        2: 1018:    case OP_ALT:
+        2: 1019:      node->first = idx;
+        2: 1020:      break;
+        -: 1021:      /* else fall through */
+     2543: 1022:    default:
+        -: 1023:#ifdef DEBUG
+        -: 1024:      assert (node->left != NULL);
+        -: 1025:#endif
+     2543: 1026:      if (node->left->first == -1)
+branch  0 taken 2543 (fallthrough)
+branch  1 taken 0
+     2543: 1027:	calc_first (dfa, node->left);
+call    0 returned 2543
+     2543: 1028:      node->first = node->left->first;
+     2543: 1029:      break;
+        -: 1030:    }
+     5830: 1031:}
+        -: 1032:
+        -: 1033:/* Calculate "next" for the node NODE.  */
+        -: 1034:
+        -: 1035:static void
+function calc_next called 6440 returned 100% blocks executed 95%
+     6440: 1036:calc_next (dfa, node)
+        -: 1037:     re_dfa_t *dfa;
+        -: 1038:     bin_tree_t *node;
+        -: 1039:{
+        -: 1040:  int idx, type;
+     6440: 1041:  bin_tree_t *parent = node->parent;
+     6440: 1042:  if (parent == NULL)
+branch  0 taken 1220 (fallthrough)
+branch  1 taken 5220
+        -: 1043:    {
+     1220: 1044:      node->next = -1;
+     1220: 1045:      idx = node->node_idx;
+     1220: 1046:      if (node->type == 0)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1220
+    #####: 1047:	dfa->nexts[idx] = node->next;
+     1220: 1048:      return;
+        -: 1049:    }
+        -: 1050:
+     5220: 1051:  idx = parent->node_idx;
+     5220: 1052:  type = (parent->type == 0) ? dfa->nodes[idx].type : parent->type;
+branch  0 taken 134 (fallthrough)
+branch  1 taken 5086
+        -: 1053:
+     5220: 1054:  switch (type)
+branch  0 taken 129
+branch  1 taken 5086
+branch  2 taken 5
+        -: 1055:    {
+      129: 1056:    case OP_DUP_ASTERISK:
+        -: 1057:    case OP_DUP_PLUS:
+      129: 1058:      node->next = idx;
+      129: 1059:      break;
+     5086: 1060:    case CONCAT:
+     5086: 1061:      if (parent->left == node)
+branch  0 taken 2543 (fallthrough)
+branch  1 taken 2543
+        -: 1062:	{
+     2543: 1063:	  if (parent->right->first == -1)
+branch  0 taken 2543 (fallthrough)
+branch  1 taken 0
+     2543: 1064:	    calc_first (dfa, parent->right);
+call    0 returned 2543
+     2543: 1065:	  node->next = parent->right->first;
+     2543: 1066:	  break;
+        -: 1067:	}
+        -: 1068:      /* else fall through */
+        -: 1069:    default:
+     2548: 1070:      if (parent->next == -1)
+branch  0 taken 610 (fallthrough)
+branch  1 taken 1938
+      610: 1071:	calc_next (dfa, parent);
+call    0 returned 610
+     2548: 1072:      node->next = parent->next;
+     2548: 1073:      break;
+        -: 1074:    }
+     5220: 1075:  idx = node->node_idx;
+     5220: 1076:  if (node->type == 0)
+branch  0 taken 3287 (fallthrough)
+branch  1 taken 1933
+     3287: 1077:    dfa->nexts[idx] = node->next;
+        -: 1078:}
+        -: 1079:
+        -: 1080:/* Calculate "edest" for the node NODE.  */
+        -: 1081:
+        -: 1082:static void
+function calc_epsdest called 5830 returned 100% blocks executed 77%
+     5830: 1083:calc_epsdest (dfa, node)
+        -: 1084:     re_dfa_t *dfa;
+        -: 1085:     bin_tree_t *node;
+        -: 1086:{
+        -: 1087:  int idx;
+     5830: 1088:  idx = node->node_idx;
+     5830: 1089:  if (node->type == 0)
+branch  0 taken 3287 (fallthrough)
+branch  1 taken 2543
+        -: 1090:    {
+     3287: 1091:      if (dfa->nodes[idx].type == OP_DUP_ASTERISK
+branch  0 taken 3158 (fallthrough)
+branch  1 taken 129
+     3158: 1092:	  || dfa->nodes[idx].type == OP_DUP_PLUS
+branch  0 taken 3158 (fallthrough)
+branch  1 taken 0
+     3158: 1093:	  || dfa->nodes[idx].type == OP_DUP_QUESTION)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 3157
+        -: 1094:	{
+      130: 1095:	  if (node->left->first == -1)
+branch  0 taken 130 (fallthrough)
+branch  1 taken 0
+      130: 1096:	    calc_first (dfa, node->left);
+call    0 returned 130
+      130: 1097:	  if (node->next == -1)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 130
+    #####: 1098:	    calc_next (dfa, node);
+call    0 never executed
+      130: 1099:	  re_node_set_init_2 (dfa->edests + idx, node->left->first,
+call    0 returned 130
+        -: 1100:			      node->next);
+        -: 1101:	}
+     3157: 1102:      else if (dfa->nodes[idx].type == OP_ALT)
+branch  0 taken 2 (fallthrough)
+branch  1 taken 3155
+        -: 1103:	{
+        -: 1104:	  int left, right;
+        2: 1105:	  if (node->left != NULL)
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+        -: 1106:	    {
+        2: 1107:	      if (node->left->first == -1)
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+        2: 1108:		calc_first (dfa, node->left);
+call    0 returned 2
+        2: 1109:	      left = node->left->first;
+        -: 1110:	    }
+        -: 1111:	  else
+        -: 1112:	    {
+    #####: 1113:	      if (node->next == -1)
+branch  0 never executed
+branch  1 never executed
+    #####: 1114:		calc_next (dfa, node);
+call    0 never executed
+    #####: 1115:	      left = node->next;
+        -: 1116:	    }
+        2: 1117:	  if (node->right != NULL)
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+        -: 1118:	    {
+        2: 1119:	      if (node->right->first == -1)
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+        2: 1120:		calc_first (dfa, node->right);
+call    0 returned 2
+        2: 1121:	      right = node->right->first;
+        -: 1122:	    }
+        -: 1123:	  else
+        -: 1124:	    {
+    #####: 1125:	      if (node->next == -1)
+branch  0 never executed
+branch  1 never executed
+    #####: 1126:		calc_next (dfa, node);
+call    0 never executed
+    #####: 1127:	      right = node->next;
+        -: 1128:	    }
+        2: 1129:	  re_node_set_init_2 (dfa->edests + idx, left, right);
+call    0 returned 2
+        -: 1130:	}
+     3155: 1131:      else if (dfa->nodes[idx].type == ANCHOR
+branch  0 taken 2901 (fallthrough)
+branch  1 taken 254
+     2901: 1132:	       || dfa->nodes[idx].type == OP_OPEN_SUBEXP
+branch  0 taken 2885 (fallthrough)
+branch  1 taken 16
+     2885: 1133:	       || dfa->nodes[idx].type == OP_CLOSE_SUBEXP
+branch  0 taken 2869 (fallthrough)
+branch  1 taken 16
+     2869: 1134:	       || dfa->nodes[idx].type == OP_BACK_REF)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2869
+      286: 1135:	re_node_set_init_1 (dfa->edests + idx, node->next);
+call    0 returned 286
+        -: 1136:    }
+     5830: 1137:}
+        -: 1138:
+        -: 1139:/* Duplicate the epsilon closure of the node ROOT_NODE.
+        -: 1140:   Note that duplicated nodes have constraint INIT_CONSTRAINT in addition
+        -: 1141:   to their own constraint.  */
+        -: 1142:
+        -: 1143:static reg_errcode_t
+function duplicate_node_closure called 254 returned 100% blocks executed 36%
+      254: 1144:duplicate_node_closure (dfa, top_org_node, top_clone_node, root_node,
+        -: 1145:			init_constraint)
+        -: 1146:     re_dfa_t *dfa;
+        -: 1147:     int top_org_node, top_clone_node, root_node;
+        -: 1148:     unsigned int init_constraint;
+        -: 1149:{
+        -: 1150:  reg_errcode_t err;
+        -: 1151:  int org_node, clone_node, ret;
+      254: 1152:  unsigned int constraint = init_constraint;
+      254: 1153:  for (org_node = top_org_node, clone_node = top_clone_node;;)
+      301: 1154:    {
+        -: 1155:      int org_dest, clone_dest;
+      555: 1156:      if (dfa->nodes[org_node].type == OP_BACK_REF)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 555
+        -: 1157:	{
+        -: 1158:	  /* If the back reference epsilon-transit, its destination must
+        -: 1159:	     also have the constraint.  Then duplicate the epsilon closure
+        -: 1160:	     of the destination of the back reference, and store it in
+        -: 1161:	     edests of the back reference.  */
+    #####: 1162:	  org_dest = dfa->nexts[org_node];
+    #####: 1163:	  re_node_set_empty (dfa->edests + clone_node);
+    #####: 1164:	  err = duplicate_node (&clone_dest, dfa, org_dest, constraint);
+call    0 never executed
+    #####: 1165:	  if (BE (err != REG_NOERROR, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 1166:	    return err;
+    #####: 1167:	  dfa->nexts[clone_node] = dfa->nexts[org_node];
+    #####: 1168:	  ret = re_node_set_insert (dfa->edests + clone_node, clone_dest);
+call    0 never executed
+    #####: 1169:	  if (BE (ret < 0, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 1170:	    return REG_ESPACE;
+        -: 1171:	}
+      555: 1172:      else if (dfa->edests[org_node].nelem == 0)
+branch  0 taken 254 (fallthrough)
+branch  1 taken 301
+        -: 1173:	{
+        -: 1174:	  /* In case of the node can't epsilon-transit, don't duplicate the
+        -: 1175:	     destination and store the original destination as the
+        -: 1176:	     destination of the node.  */
+      254: 1177:	  dfa->nexts[clone_node] = dfa->nexts[org_node];
+      254: 1178:	  break;
+        -: 1179:	}
+      301: 1180:      else if (dfa->edests[org_node].nelem == 1)
+branch  0 taken 301 (fallthrough)
+branch  1 taken 0
+        -: 1181:	{
+        -: 1182:	  /* In case of the node can epsilon-transit, and it has only one
+        -: 1183:	     destination.  */
+      301: 1184:	  org_dest = dfa->edests[org_node].elems[0];
+      301: 1185:	  re_node_set_empty (dfa->edests + clone_node);
+      301: 1186:	  if (dfa->nodes[org_node].type == ANCHOR)
+branch  0 taken 301 (fallthrough)
+branch  1 taken 0
+        -: 1187:	    {
+        -: 1188:	      /* In case of the node has another constraint, append it.  */
+      301: 1189:	      if (org_node == root_node && clone_node != org_node)
+branch  0 taken 254 (fallthrough)
+branch  1 taken 47
+branch  2 taken 0 (fallthrough)
+branch  3 taken 254
+        -: 1190:		{
+        -: 1191:		  /* ...but if the node is root_node itself, it means the
+        -: 1192:		     epsilon closure have a loop, then tie it to the
+        -: 1193:		     destination of the root_node.  */
+    #####: 1194:		  ret = re_node_set_insert (dfa->edests + clone_node,
+call    0 never executed
+        -: 1195:					    org_dest);
+    #####: 1196:		  if (BE (ret < 0, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 1197:		    return REG_ESPACE;
+    #####: 1198:		  break;
+        -: 1199:		}
+      301: 1200:	      constraint |= dfa->nodes[org_node].opr.ctx_type;
+        -: 1201:	    }
+      301: 1202:	  err = duplicate_node (&clone_dest, dfa, org_dest, constraint);
+call    0 returned 301
+      301: 1203:	  if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 301
+    #####: 1204:	    return err;
+      301: 1205:	  ret = re_node_set_insert (dfa->edests + clone_node, clone_dest);
+call    0 returned 301
+      301: 1206:	  if (BE (ret < 0, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 301
+    #####: 1207:	    return REG_ESPACE;
+        -: 1208:	}
+        -: 1209:      else /* dfa->edests[org_node].nelem == 2 */
+        -: 1210:	{
+        -: 1211:	  /* In case of the node can epsilon-transit, and it has two
+        -: 1212:	     destinations.  */
+    #####: 1213:	  org_dest = dfa->edests[org_node].elems[0];
+    #####: 1214:	  re_node_set_empty (dfa->edests + clone_node);
+    #####: 1215:	  err = duplicate_node (&clone_dest, dfa, org_dest, constraint);
+call    0 never executed
+    #####: 1216:	  if (BE (err != REG_NOERROR, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 1217:	    return err;
+    #####: 1218:	  ret = re_node_set_insert (dfa->edests + clone_node, clone_dest);
+call    0 never executed
+    #####: 1219:	  if (BE (ret < 0, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 1220:	    return REG_ESPACE;
+        -: 1221:
+    #####: 1222:	  err = duplicate_node_closure (dfa, org_dest, clone_dest, root_node,
+call    0 never executed
+        -: 1223:					constraint);
+    #####: 1224:	  if (BE (err != REG_NOERROR, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 1225:	    return err;
+        -: 1226:
+    #####: 1227:	  org_dest = dfa->edests[org_node].elems[1];
+    #####: 1228:	  err = duplicate_node (&clone_dest, dfa, org_dest, constraint);
+call    0 never executed
+    #####: 1229:	  if (BE (err != REG_NOERROR, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 1230:	    return err;
+    #####: 1231:	  ret = re_node_set_insert (dfa->edests + clone_node, clone_dest);
+call    0 never executed
+    #####: 1232:	  if (BE (ret < 0, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 1233:	    return REG_ESPACE;
+        -: 1234:	}
+      301: 1235:      org_node = org_dest;
+      301: 1236:      clone_node = clone_dest;
+        -: 1237:    }
+      254: 1238:  return REG_NOERROR;
+        -: 1239:}
+        -: 1240:
+        -: 1241:/* Duplicate the node whose index is ORG_IDX and set the constraint CONSTRAINT.
+        -: 1242:   The new index will be stored in NEW_IDX and return REG_NOERROR if succeeded,
+        -: 1243:   otherwise return the error code.  */
+        -: 1244:
+        -: 1245:static reg_errcode_t
+function duplicate_node called 301 returned 100% blocks executed 88%
+      301: 1246:duplicate_node (new_idx, dfa, org_idx, constraint)
+        -: 1247:     re_dfa_t *dfa;
+        -: 1248:     int *new_idx, org_idx;
+        -: 1249:     unsigned int constraint;
+        -: 1250:{
+        -: 1251:  re_token_t dup;
+        -: 1252:  int dup_idx;
+        -: 1253:
+      301: 1254:  dup = dfa->nodes[org_idx];
+      301: 1255:  dup_idx = re_dfa_add_node (dfa, dup, 1);
+call    0 returned 301
+      301: 1256:  if (BE (dup_idx == -1, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 301
+    #####: 1257:    return REG_ESPACE;
+      301: 1258:  dfa->nodes[dup_idx].constraint = constraint;
+      301: 1259:  if (dfa->nodes[org_idx].type == ANCHOR)
+branch  0 taken 47 (fallthrough)
+branch  1 taken 254
+       47: 1260:    dfa->nodes[dup_idx].constraint |= dfa->nodes[org_idx].opr.ctx_type;
+      301: 1261:  dfa->nodes[dup_idx].duplicated = 1;
+      301: 1262:  re_node_set_init_empty (dfa->edests + dup_idx);
+      301: 1263:  re_node_set_init_empty (dfa->eclosures + dup_idx);
+      301: 1264:  re_node_set_init_empty (dfa->inveclosures + dup_idx);
+        -: 1265:
+      301: 1266:  *new_idx = dup_idx;
+      301: 1267:  return REG_NOERROR;
+        -: 1268:}
+        -: 1269:
+        -: 1270:static void
+function calc_inveclosure called 610 returned 100% blocks executed 100%
+      610: 1271:calc_inveclosure (dfa)
+        -: 1272:     re_dfa_t *dfa;
+        -: 1273:{
+        -: 1274:  int src, idx, dest;
+     4198: 1275:  for (src = 0; src < dfa->nodes_len; ++src)
+branch  0 taken 3588
+branch  1 taken 610 (fallthrough)
+        -: 1276:    {
+     7873: 1277:      for (idx = 0; idx < dfa->eclosures[src].nelem; ++idx)
+branch  0 taken 4285
+branch  1 taken 3588 (fallthrough)
+        -: 1278:	{
+     4285: 1279:	  dest = dfa->eclosures[src].elems[idx];
+     4285: 1280:	  re_node_set_insert (dfa->inveclosures + dest, src);
+call    0 returned 4285
+        -: 1281:	}
+        -: 1282:    }
+      610: 1283:}
+        -: 1284:
+        -: 1285:/* Calculate "eclosure" for all the node in DFA.  */
+        -: 1286:
+        -: 1287:static reg_errcode_t
+function calc_eclosure called 610 returned 100% blocks executed 80%
+      610: 1288:calc_eclosure (dfa)
+        -: 1289:     re_dfa_t *dfa;
+        -: 1290:{
+        -: 1291:  int node_idx, incomplete;
+        -: 1292:#ifdef DEBUG
+        -: 1293:  assert (dfa->nodes_len > 0);
+        -: 1294:#endif
+      610: 1295:  incomplete = 0;
+        -: 1296:  /* For each nodes, calculate epsilon closure.  */
+      610: 1297:  for (node_idx = 0; ; ++node_idx)
+     3588: 1298:    {
+        -: 1299:      reg_errcode_t err;
+        -: 1300:      re_node_set eclosure_elem;
+     4198: 1301:      if (node_idx == dfa->nodes_len)
+branch  0 taken 610 (fallthrough)
+branch  1 taken 3588
+        -: 1302:	{
+      610: 1303:	  if (!incomplete)
+branch  0 taken 610 (fallthrough)
+branch  1 taken 0
+      610: 1304:	    break;
+    #####: 1305:	  incomplete = 0;
+    #####: 1306:	  node_idx = 0;
+        -: 1307:	}
+        -: 1308:
+        -: 1309:#ifdef DEBUG
+        -: 1310:      assert (dfa->eclosures[node_idx].nelem != -1);
+        -: 1311:#endif
+        -: 1312:      /* If we have already calculated, skip it.  */
+     3588: 1313:      if (dfa->eclosures[node_idx].nelem != 0)
+branch  0 taken 475 (fallthrough)
+branch  1 taken 3113
+      475: 1314:	continue;
+        -: 1315:      /* Calculate epsilon closure of `node_idx'.  */
+     3113: 1316:      err = calc_eclosure_iter (&eclosure_elem, dfa, node_idx, 1);
+call    0 returned 3113
+     3113: 1317:      if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3113
+    #####: 1318:	return err;
+        -: 1319:
+     3113: 1320:      if (dfa->eclosures[node_idx].nelem == 0)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3113
+        -: 1321:	{
+    #####: 1322:	  incomplete = 1;
+    #####: 1323:	  re_node_set_free (&eclosure_elem);
+        -: 1324:	}
+        -: 1325:    }
+      610: 1326:  return REG_NOERROR;
+        -: 1327:}
+        -: 1328:
+        -: 1329:/* Calculate epsilon closure of NODE.  */
+        -: 1330:
+        -: 1331:static reg_errcode_t
+function calc_eclosure_iter called 3588 returned 100% blocks executed 82%
+     3588: 1332:calc_eclosure_iter (new_set, dfa, node, root)
+        -: 1333:     re_node_set *new_set;
+        -: 1334:     re_dfa_t *dfa;
+        -: 1335:     int node, root;
+        -: 1336:{
+        -: 1337:  reg_errcode_t err;
+        -: 1338:  unsigned int constraint;
+        -: 1339:  int i, incomplete;
+        -: 1340:  re_node_set eclosure;
+     3588: 1341:  incomplete = 0;
+     3588: 1342:  err = re_node_set_alloc (&eclosure, dfa->edests[node].nelem + 1);
+call    0 returned 3588
+     3588: 1343:  if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3588
+    #####: 1344:    return err;
+        -: 1345:
+        -: 1346:  /* This indicates that we are calculating this node now.
+        -: 1347:     We reference this value to avoid infinite loop.  */
+     3588: 1348:  dfa->eclosures[node].nelem = -1;
+        -: 1349:
+     7176: 1350:  constraint = ((dfa->nodes[node].type == ANCHOR)
+     3588: 1351:		? dfa->nodes[node].opr.ctx_type : 0);
+branch  0 taken 301 (fallthrough)
+branch  1 taken 3287
+        -: 1352:  /* If the current node has constraints, duplicate all nodes.
+        -: 1353:     Since they must inherit the constraints.  */
+     3588: 1354:  if (constraint && !dfa->nodes[dfa->edests[node].elems[0]].duplicated)
+branch  0 taken 301 (fallthrough)
+branch  1 taken 3287
+branch  2 taken 254 (fallthrough)
+branch  3 taken 47
+        -: 1355:    {
+        -: 1356:      int org_node, cur_node;
+      254: 1357:      org_node = cur_node = node;
+      254: 1358:      err = duplicate_node_closure (dfa, node, node, node, constraint);
+call    0 returned 254
+      254: 1359:      if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 254
+    #####: 1360:	return err;
+        -: 1361:    }
+        -: 1362:
+        -: 1363:  /* Expand each epsilon destination nodes.  */
+     3588: 1364:  if (IS_EPSILON_NODE(dfa->nodes[node].type))
+branch  0 taken 3586 (fallthrough)
+branch  1 taken 2
+branch  2 taken 3457 (fallthrough)
+branch  3 taken 129
+branch  4 taken 3457 (fallthrough)
+branch  5 taken 0
+branch  6 taken 3456 (fallthrough)
+branch  7 taken 1
+branch  8 taken 3155 (fallthrough)
+branch  9 taken 301
+branch 10 taken 3139 (fallthrough)
+branch 11 taken 16
+branch 12 taken 16 (fallthrough)
+branch 13 taken 3123
+     1062: 1365:    for (i = 0; i < dfa->edests[node].nelem; ++i)
+branch  0 taken 597
+branch  1 taken 465 (fallthrough)
+        -: 1366:      {
+        -: 1367:	re_node_set eclosure_elem;
+      597: 1368:	int edest = dfa->edests[node].elems[i];
+        -: 1369:	/* If calculating the epsilon closure of `edest' is in progress,
+        -: 1370:	   return intermediate result.  */
+     597*: 1371:	if (dfa->eclosures[edest].nelem == -1)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 597
+        -: 1372:	  {
+    #####: 1373:	    incomplete = 1;
+    #####: 1374:	    continue;
+        -: 1375:	  }
+        -: 1376:	/* If we haven't calculated the epsilon closure of `edest' yet,
+        -: 1377:	   calculate now. Otherwise use calculated epsilon closure.  */
+      597: 1378:	if (dfa->eclosures[edest].nelem == 0)
+branch  0 taken 475 (fallthrough)
+branch  1 taken 122
+        -: 1379:	  {
+      475: 1380:	    err = calc_eclosure_iter (&eclosure_elem, dfa, edest, 0);
+call    0 returned 475
+      475: 1381:	    if (BE (err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 475
+    #####: 1382:	      return err;
+        -: 1383:	  }
+        -: 1384:	else
+      122: 1385:	  eclosure_elem = dfa->eclosures[edest];
+        -: 1386:	/* Merge the epsilon closure of `edest'.  */
+      597: 1387:	re_node_set_merge (&eclosure, &eclosure_elem);
+call    0 returned 597
+        -: 1388:	/* If the epsilon closure of `edest' is incomplete,
+        -: 1389:	   the epsilon closure of this node is also incomplete.  */
+      597: 1390:	if (dfa->eclosures[edest].nelem == 0)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 597
+        -: 1391:	  {
+    #####: 1392:	    incomplete = 1;
+    #####: 1393:	    re_node_set_free (&eclosure_elem);
+        -: 1394:	  }
+        -: 1395:      }
+        -: 1396:
+        -: 1397:  /* Epsilon closures include itself.  */
+     3588: 1398:  re_node_set_insert (&eclosure, node);
+call    0 returned 3588
+    3588*: 1399:  if (incomplete && !root)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 3588
+branch  2 never executed
+branch  3 never executed
+    #####: 1400:    dfa->eclosures[node].nelem = 0;
+        -: 1401:  else
+     3588: 1402:    dfa->eclosures[node] = eclosure;
+     3588: 1403:  *new_set = eclosure;
+     3588: 1404:  return REG_NOERROR;
+        -: 1405:}
+        -: 1406:
+        -: 1407:/* Functions for token which are used in the parser.  */
+        -: 1408:
+        -: 1409:/* Fetch a token from INPUT.
+        -: 1410:   We must not use this function inside bracket expressions.  */
+        -: 1411:
+        -: 1412:static re_token_t
+function fetch_token called 3290 returned 100% blocks executed 100%
+     3290: 1413:fetch_token (input, syntax)
+        -: 1414:     re_string_t *input;
+        -: 1415:     reg_syntax_t syntax;
+        -: 1416:{
+        -: 1417:  re_token_t token;
+        -: 1418:  int consumed_byte;
+     3290: 1419:  consumed_byte = peek_token (&token, input, syntax);
+call    0 returned 3290
+     3290: 1420:  re_string_skip_bytes (input, consumed_byte);
+     3290: 1421:  return token;
+        -: 1422:}
+        -: 1423:
+        -: 1424:/* Peek a token from INPUT, and return the length of the token.
+        -: 1425:   We must not use this function inside bracket expressions.  */
+        -: 1426:
+        -: 1427:static int
+function peek_token called 3290 returned 100% blocks executed 41%
+     3290: 1428:peek_token (token, input, syntax)
+        -: 1429:     re_token_t *token;
+        -: 1430:     re_string_t *input;
+        -: 1431:     reg_syntax_t syntax;
+        -: 1432:{
+        -: 1433:  unsigned char c;
+        -: 1434:
+     3290: 1435:  if (re_string_eoi (input))
+branch  0 taken 610 (fallthrough)
+branch  1 taken 2680
+        -: 1436:    {
+      610: 1437:      token->type = END_OF_RE;
+      610: 1438:      return 0;
+        -: 1439:    }
+        -: 1440:
+     2680: 1441:  c = re_string_peek_byte (input, 0);
+     2680: 1442:  token->opr.c = c;
+        -: 1443:
+        -: 1444:#ifdef RE_ENABLE_I18N
+        -: 1445:  token->mb_partial = 0;
+        -: 1446:  if (MB_CUR_MAX > 1 &&
+        -: 1447:      !re_string_first_byte (input, re_string_cur_idx (input)))
+        -: 1448:    {
+        -: 1449:      token->type = CHARACTER;
+        -: 1450:      token->mb_partial = 1;
+        -: 1451:      return 1;
+        -: 1452:    }
+        -: 1453:#endif
+     2680: 1454:  if (c == '\\')
+branch  0 taken 339 (fallthrough)
+branch  1 taken 2341
+        -: 1455:    {
+        -: 1456:      unsigned char c2;
+      339: 1457:      if (re_string_cur_idx (input) + 1 >= re_string_length (input))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 339
+        -: 1458:	{
+    #####: 1459:	  token->type = BACK_SLASH;
+    #####: 1460:	  return 1;
+        -: 1461:	}
+        -: 1462:
+      339: 1463:      c2 = re_string_peek_byte_case (input, 1);
+      339: 1464:      token->opr.c = c2;
+      339: 1465:      token->type = CHARACTER;
+      339: 1466:      switch (c2)
+branch  0 taken 0
+branch  1 taken 0
+branch  2 taken 0
+branch  3 taken 0
+branch  4 taken 0
+branch  5 taken 0
+branch  6 taken 0
+branch  7 taken 0
+branch  8 taken 0
+branch  9 taken 0
+branch 10 taken 12
+branch 11 taken 12
+branch 12 taken 0
+branch 13 taken 0
+branch 14 taken 1
+branch 15 taken 1
+branch 16 taken 313
+        -: 1467:	{
+    #####: 1468:	case '|':
+    #####: 1469:	  if (!(syntax & RE_LIMITED_OPS) && !(syntax & RE_NO_BK_VBAR))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 1470:	    token->type = OP_ALT;
+    #####: 1471:	  break;
+    #####: 1472:	case '1': case '2': case '3': case '4': case '5':
+        -: 1473:	case '6': case '7': case '8': case '9':
+    #####: 1474:	  if (!(syntax & RE_NO_BK_REFS))
+branch  0 never executed
+branch  1 never executed
+        -: 1475:	    {
+    #####: 1476:	      token->type = OP_BACK_REF;
+    #####: 1477:	      token->opr.idx = c2 - '0';
+        -: 1478:	    }
+    #####: 1479:	  break;
+    #####: 1480:	case '<':
+    #####: 1481:	  if (!(syntax & RE_NO_GNU_OPS))
+branch  0 never executed
+branch  1 never executed
+        -: 1482:	    {
+    #####: 1483:	      token->type = ANCHOR;
+    #####: 1484:	      token->opr.idx = WORD_FIRST;
+        -: 1485:	    }
+    #####: 1486:	  break;
+    #####: 1487:	case '>':
+    #####: 1488:	  if (!(syntax & RE_NO_GNU_OPS))
+branch  0 never executed
+branch  1 never executed
+        -: 1489:	    {
+    #####: 1490:	      token->type = ANCHOR;
+    #####: 1491:	      token->opr.idx = WORD_LAST;
+        -: 1492:	    }
+    #####: 1493:	  break;
+    #####: 1494:	case 'b':
+    #####: 1495:	  if (!(syntax & RE_NO_GNU_OPS))
+branch  0 never executed
+branch  1 never executed
+        -: 1496:	    {
+    #####: 1497:	      token->type = ANCHOR;
+    #####: 1498:	      token->opr.idx = WORD_DELIM;
+        -: 1499:	    }
+    #####: 1500:	  break;
+    #####: 1501:	case 'B':
+    #####: 1502:	  if (!(syntax & RE_NO_GNU_OPS))
+branch  0 never executed
+branch  1 never executed
+        -: 1503:	    {
+    #####: 1504:	      token->type = ANCHOR;
+    #####: 1505:	      token->opr.idx = INSIDE_WORD;
+        -: 1506:	    }
+    #####: 1507:	  break;
+    #####: 1508:	case 'w':
+    #####: 1509:	  if (!(syntax & RE_NO_GNU_OPS))
+branch  0 never executed
+branch  1 never executed
+    #####: 1510:	    token->type = OP_WORD;
+    #####: 1511:	  break;
+    #####: 1512:	case 'W':
+    #####: 1513:	  if (!(syntax & RE_NO_GNU_OPS))
+branch  0 never executed
+branch  1 never executed
+    #####: 1514:	    token->type = OP_NOTWORD;
+    #####: 1515:	  break;
+    #####: 1516:	case '`':
+    #####: 1517:	  if (!(syntax & RE_NO_GNU_OPS))
+branch  0 never executed
+branch  1 never executed
+        -: 1518:	    {
+    #####: 1519:	      token->type = ANCHOR;
+    #####: 1520:	      token->opr.idx = BUF_FIRST;
+        -: 1521:	    }
+    #####: 1522:	  break;
+    #####: 1523:	case '\'':
+    #####: 1524:	  if (!(syntax & RE_NO_GNU_OPS))
+branch  0 never executed
+branch  1 never executed
+        -: 1525:	    {
+    #####: 1526:	      token->type = ANCHOR;
+    #####: 1527:	      token->opr.idx = BUF_LAST;
+        -: 1528:	    }
+    #####: 1529:	  break;
+       12: 1530:	case '(':
+       12: 1531:	  if (!(syntax & RE_NO_BK_PARENS))
+branch  0 taken 12 (fallthrough)
+branch  1 taken 0
+       12: 1532:	    token->type = OP_OPEN_SUBEXP;
+       12: 1533:	  break;
+       12: 1534:	case ')':
+       12: 1535:	  if (!(syntax & RE_NO_BK_PARENS))
+branch  0 taken 12 (fallthrough)
+branch  1 taken 0
+       12: 1536:	    token->type = OP_CLOSE_SUBEXP;
+       12: 1537:	  break;
+    #####: 1538:	case '+':
+    #####: 1539:	  if (!(syntax & RE_LIMITED_OPS) && (syntax & RE_BK_PLUS_QM))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 1540:	    token->type = OP_DUP_PLUS;
+    #####: 1541:	  break;
+    #####: 1542:	case '?':
+    #####: 1543:	  if (!(syntax & RE_LIMITED_OPS) && (syntax & RE_BK_PLUS_QM))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 1544:	    token->type = OP_DUP_QUESTION;
+    #####: 1545:	  break;
+        1: 1546:	case '{':
+        1: 1547:	  if ((syntax & RE_INTERVALS) && (!(syntax & RE_NO_BK_BRACES)))
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+branch  2 taken 1 (fallthrough)
+branch  3 taken 0
+        1: 1548:	    token->type = OP_OPEN_DUP_NUM;
+        1: 1549:	  break;
+        1: 1550:	case '}':
+        1: 1551:	  if ((syntax & RE_INTERVALS) && (!(syntax & RE_NO_BK_BRACES)))
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+branch  2 taken 1 (fallthrough)
+branch  3 taken 0
+        1: 1552:	    token->type = OP_CLOSE_DUP_NUM;
+        1: 1553:	  break;
+      313: 1554:	default:
+      313: 1555:	  break;
+        -: 1556:	}
+      339: 1557:      return 2;
+        -: 1558:    }
+        -: 1559:
+     2341: 1560:  token->type = CHARACTER;
+     2341: 1561:  switch (c)
+branch  0 taken 12
+branch  1 taken 2
+branch  2 taken 137
+branch  3 taken 0
+branch  4 taken 0
+branch  5 taken 0
+branch  6 taken 0
+branch  7 taken 4
+branch  8 taken 4
+branch  9 taken 9
+branch 10 taken 121
+branch 11 taken 152
+branch 12 taken 102
+branch 13 taken 1798
+        -: 1562:    {
+       12: 1563:    case '\n':
+       12: 1564:      if (syntax & RE_NEWLINE_ALT)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 12
+    #####: 1565:	token->type = OP_ALT;
+       12: 1566:      break;
+        2: 1567:    case '|':
+        2: 1568:      if (!(syntax & RE_LIMITED_OPS) && (syntax & RE_NO_BK_VBAR))
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+branch  2 taken 2 (fallthrough)
+branch  3 taken 0
+        2: 1569:	token->type = OP_ALT;
+        2: 1570:      break;
+      137: 1571:    case '*':
+      137: 1572:      token->type = OP_DUP_ASTERISK;
+      137: 1573:      break;
+    #####: 1574:    case '+':
+    #####: 1575:      if (!(syntax & RE_LIMITED_OPS) && !(syntax & RE_BK_PLUS_QM))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 1576:	token->type = OP_DUP_PLUS;
+    #####: 1577:      break;
+    #####: 1578:    case '?':
+    #####: 1579:      if (!(syntax & RE_LIMITED_OPS) && !(syntax & RE_BK_PLUS_QM))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 1580:	token->type = OP_DUP_QUESTION;
+    #####: 1581:      break;
+    #####: 1582:    case '{':
+    #####: 1583:      if ((syntax & RE_INTERVALS) && (syntax & RE_NO_BK_BRACES))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 1584:	token->type = OP_OPEN_DUP_NUM;
+    #####: 1585:      break;
+    #####: 1586:    case '}':
+    #####: 1587:      if ((syntax & RE_INTERVALS) && (syntax & RE_NO_BK_BRACES))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 1588:	token->type = OP_CLOSE_DUP_NUM;
+    #####: 1589:      break;
+        4: 1590:    case '(':
+        4: 1591:      if (syntax & RE_NO_BK_PARENS)
+branch  0 taken 4 (fallthrough)
+branch  1 taken 0
+        4: 1592:	token->type = OP_OPEN_SUBEXP;
+        4: 1593:      break;
+        4: 1594:    case ')':
+        4: 1595:      if (syntax & RE_NO_BK_PARENS)
+branch  0 taken 4 (fallthrough)
+branch  1 taken 0
+        4: 1596:	token->type = OP_CLOSE_SUBEXP;
+        4: 1597:      break;
+        9: 1598:    case '[':
+        9: 1599:      token->type = OP_OPEN_BRACKET;
+        9: 1600:      break;
+      121: 1601:    case '.':
+      121: 1602:      token->type = OP_PERIOD;
+      121: 1603:      break;
+      152: 1604:    case '^':
+      152: 1605:      if (!(syntax & RE_CONTEXT_INDEP_ANCHORS) &&
+branch  0 taken 152 (fallthrough)
+branch  1 taken 0
+      152: 1606:	  re_string_cur_idx (input) != 0)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 152
+        -: 1607:	{
+    #####: 1608:	  char prev = re_string_peek_byte (input, -1);
+    #####: 1609:	  if (prev != '|' && prev != '(' &&
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 1610:	      (!(syntax & RE_NEWLINE_ALT) || prev != '\n'))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -: 1611:	    break;
+        -: 1612:	}
+      152: 1613:      token->type = ANCHOR;
+      152: 1614:      token->opr.idx = LINE_FIRST;
+      152: 1615:      break;
+      102: 1616:    case '$':
+      102: 1617:      if (!(syntax & RE_CONTEXT_INDEP_ANCHORS) &&
+branch  0 taken 102 (fallthrough)
+branch  1 taken 0
+      102: 1618:	  re_string_cur_idx (input) + 1 != re_string_length (input))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 102
+        -: 1619:	{
+        -: 1620:	  re_token_t next;
+    #####: 1621:	  re_string_skip_bytes (input, 1);
+    #####: 1622:	  peek_token (&next, input, syntax);
+call    0 never executed
+    #####: 1623:	  re_string_skip_bytes (input, -1);
+    #####: 1624:	  if (next.type != OP_ALT && next.type != OP_CLOSE_SUBEXP)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 1625:	    break;
+        -: 1626:	}
+      102: 1627:      token->type = ANCHOR;
+      102: 1628:      token->opr.idx = LINE_LAST;
+      102: 1629:      break;
+     1798: 1630:    default:
+     1798: 1631:      break;
+        -: 1632:    }
+     2341: 1633:  return 1;
+        -: 1634:}
+        -: 1635:
+        -: 1636:/* Peek a token from INPUT, and return the length of the token.
+        -: 1637:   We must not use this function out of bracket expressions.  */
+        -: 1638:
+        -: 1639:static int
+function peek_token_bracket called 49 returned 100% blocks executed 45%
+       49: 1640:peek_token_bracket (token, input, syntax)
+        -: 1641:     re_token_t *token;
+        -: 1642:     re_string_t *input;
+        -: 1643:     reg_syntax_t syntax;
+        -: 1644:{
+        -: 1645:  unsigned char c;
+       49: 1646:  if (re_string_eoi (input))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 49
+        -: 1647:    {
+    #####: 1648:      token->type = END_OF_RE;
+    #####: 1649:      return 0;
+        -: 1650:    }
+       49: 1651:  c = re_string_peek_byte (input, 0);
+       49: 1652:  token->opr.c = c;
+        -: 1653:
+        -: 1654:#ifdef RE_ENABLE_I18N
+        -: 1655:  if (MB_CUR_MAX > 1 &&
+        -: 1656:      !re_string_first_byte (input, re_string_cur_idx (input)))
+        -: 1657:    {
+        -: 1658:      token->type = CHARACTER;
+        -: 1659:      return 1;
+        -: 1660:    }
+        -: 1661:#endif /* RE_ENABLE_I18N */
+        -: 1662:
+      49*: 1663:  if (c == '\\' && (syntax & RE_BACKSLASH_ESCAPE_IN_LISTS))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 49
+branch  2 never executed
+branch  3 never executed
+        -: 1664:    {
+        -: 1665:      /* In this case, '\' escape a character.  */
+        -: 1666:      unsigned char c2;
+    #####: 1667:      re_string_skip_bytes (input, 1);
+    #####: 1668:      c2 = re_string_peek_byte (input, 0);
+    #####: 1669:      token->opr.c = c2;
+    #####: 1670:      token->type = CHARACTER;
+    #####: 1671:      return 1;
+        -: 1672:    }
+       49: 1673:  if (c == '[') /* '[' is a special char in a bracket exps.  */
+branch  0 taken 0 (fallthrough)
+branch  1 taken 49
+        -: 1674:    {
+        -: 1675:      unsigned char c2;
+        -: 1676:      int token_len;
+    #####: 1677:      c2 = re_string_peek_byte (input, 1);
+    #####: 1678:      token->opr.c = c2;
+    #####: 1679:      token_len = 2;
+    #####: 1680:      switch (c2)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -: 1681:	{
+    #####: 1682:	case '.':
+    #####: 1683:	  token->type = OP_OPEN_COLL_ELEM;
+    #####: 1684:	  break;
+    #####: 1685:	case '=':
+    #####: 1686:	  token->type = OP_OPEN_EQUIV_CLASS;
+    #####: 1687:	  break;
+    #####: 1688:	case ':':
+    #####: 1689:	  if (syntax & RE_CHAR_CLASSES)
+branch  0 never executed
+branch  1 never executed
+        -: 1690:	    {
+    #####: 1691:	      token->type = OP_OPEN_CHAR_CLASS;
+    #####: 1692:	      break;
+        -: 1693:	    }
+        -: 1694:	  /* else fall through.  */
+        -: 1695:	default:
+    #####: 1696:	  token->type = CHARACTER;
+    #####: 1697:	  token->opr.c = c;
+    #####: 1698:	  token_len = 1;
+    #####: 1699:	  break;
+        -: 1700:	}
+    #####: 1701:      return token_len;
+        -: 1702:    }
+       49: 1703:  switch (c)
+branch  0 taken 0
+branch  1 taken 9
+branch  2 taken 1
+branch  3 taken 39
+        -: 1704:    {
+    #####: 1705:    case '-':
+    #####: 1706:      token->type = OP_CHARSET_RANGE;
+    #####: 1707:      break;
+        9: 1708:    case ']':
+        9: 1709:      token->type = OP_CLOSE_BRACKET;
+        9: 1710:      break;
+        1: 1711:    case '^':
+        1: 1712:      token->type = OP_NON_MATCH_LIST;
+        1: 1713:      break;
+       39: 1714:    default:
+       39: 1715:      token->type = CHARACTER;
+        -: 1716:    }
+       49: 1717:  return 1;
+        -: 1718:}
+        -: 1719:
+        -: 1720:/* Functions for parser.  */
+        -: 1721:
+        -: 1722:/* Entry point of the parser.
+        -: 1723:   Parse the regular expression REGEXP and return the structure tree.
+        -: 1724:   If an error is occured, ERR is set by error code, and return NULL.
+        -: 1725:   This function build the following tree, from regular expression <reg_exp>:
+        -: 1726:	   CAT
+        -: 1727:	   / \
+        -: 1728:	  /   \
+        -: 1729:   <reg_exp>  EOR
+        -: 1730:
+        -: 1731:   CAT means concatenation.
+        -: 1732:   EOR means end of regular expression.  */
+        -: 1733:
+        -: 1734:static bin_tree_t *
+function parse called 610 returned 100% blocks executed 75%
+      610: 1735:parse (regexp, preg, syntax, err)
+        -: 1736:     re_string_t *regexp;
+        -: 1737:     regex_t *preg;
+        -: 1738:     reg_syntax_t syntax;
+        -: 1739:     reg_errcode_t *err;
+        -: 1740:{
+      610: 1741:  re_dfa_t *dfa = (re_dfa_t *) preg->buffer;
+        -: 1742:  bin_tree_t *tree, *eor, *root;
+        -: 1743:  re_token_t current_token;
+        -: 1744:  int new_idx;
+      610: 1745:  current_token = fetch_token (regexp, syntax);
+call    0 returned 610
+      610: 1746:  tree = parse_reg_exp (regexp, preg, &current_token, syntax, 0, err);
+call    0 returned 610
+     610*: 1747:  if (BE (*err != REG_NOERROR && tree == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 610
+branch  2 never executed
+branch  3 never executed
+    #####: 1748:    return NULL;
+      610: 1749:  new_idx = re_dfa_add_node (dfa, current_token, 0);
+call    0 returned 610
+      610: 1750:  eor = create_tree (NULL, NULL, 0, new_idx);
+call    0 returned 610
+      610: 1751:  if (tree != NULL)
+branch  0 taken 610 (fallthrough)
+branch  1 taken 0
+      610: 1752:    root = create_tree (tree, eor, CONCAT, 0);
+call    0 returned 610
+        -: 1753:  else
+    #####: 1754:    root = eor;
+     610*: 1755:  if (BE (new_idx == -1 || eor == NULL || root == NULL, 0))
+branch  0 taken 610 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 610
+branch  4 taken 610 (fallthrough)
+branch  5 taken 0
+branch  6 taken 0 (fallthrough)
+branch  7 taken 610
+        -: 1756:    {
+    #####: 1757:      *err = REG_ESPACE;
+    #####: 1758:      return NULL;
+        -: 1759:    }
+      610: 1760:  return root;
+        -: 1761:}
+        -: 1762:
+        -: 1763:/* This function build the following tree, from regular expression
+        -: 1764:   <branch1>|<branch2>:
+        -: 1765:	   ALT
+        -: 1766:	   / \
+        -: 1767:	  /   \
+        -: 1768:   <branch1> <branch2>
+        -: 1769:
+        -: 1770:   ALT means alternative, which represents the operator `|'.  */
+        -: 1771:
+        -: 1772:static bin_tree_t *
+function parse_reg_exp called 626 returned 100% blocks executed 67%
+      626: 1773:parse_reg_exp (regexp, preg, token, syntax, nest, err)
+        -: 1774:     re_string_t *regexp;
+        -: 1775:     regex_t *preg;
+        -: 1776:     re_token_t *token;
+        -: 1777:     reg_syntax_t syntax;
+        -: 1778:     int nest;
+        -: 1779:     reg_errcode_t *err;
+        -: 1780:{
+      626: 1781:  re_dfa_t *dfa = (re_dfa_t *) preg->buffer;
+      626: 1782:  bin_tree_t *tree, *branch = NULL;
+        -: 1783:  int new_idx;
+      626: 1784:  tree = parse_branch (regexp, preg, token, syntax, nest, err);
+call    0 returned 626
+     626*: 1785:  if (BE (*err != REG_NOERROR && tree == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 626
+branch  2 never executed
+branch  3 never executed
+    #####: 1786:    return NULL;
+        -: 1787:
+      628: 1788:  while (token->type == OP_ALT)
+branch  0 taken 2
+branch  1 taken 626 (fallthrough)
+        -: 1789:    {
+        2: 1790:      re_token_t alt_token = *token;
+        2: 1791:      new_idx = re_dfa_add_node (dfa, alt_token, 0);
+call    0 returned 2
+        2: 1792:      *token = fetch_token (regexp, syntax);
+call    0 returned 2
+        2: 1793:      if (token->type != OP_ALT && token->type != END_OF_RE
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+branch  2 taken 2 (fallthrough)
+branch  3 taken 0
+       2*: 1794:	  && (nest == 0 || token->type != OP_CLOSE_SUBEXP))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2
+branch  2 never executed
+branch  3 never executed
+        -: 1795:	{
+        2: 1796:	  branch = parse_branch (regexp, preg, token, syntax, nest, err);
+call    0 returned 2
+       2*: 1797:	  if (BE (*err != REG_NOERROR && branch == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 2
+branch  2 never executed
+branch  3 never executed
+        -: 1798:	    {
+    #####: 1799:	      free_bin_tree (tree);
+call    0 never executed
+    #####: 1800:	      return NULL;
+        -: 1801:	    }
+        -: 1802:	}
+        -: 1803:      else
+    #####: 1804:	branch = NULL;
+        2: 1805:      tree = create_tree (tree, branch, 0, new_idx);
+call    0 returned 2
+        2: 1806:      if (BE (new_idx == -1 || tree == NULL, 0))
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 2
+        -: 1807:	{
+    #####: 1808:	  *err = REG_ESPACE;
+    #####: 1809:	  return NULL;
+        -: 1810:	}
+        2: 1811:      dfa->has_plural_match = 1;
+        -: 1812:    }
+      626: 1813:  return tree;
+        -: 1814:}
+        -: 1815:
+        -: 1816:/* This function build the following tree, from regular expression
+        -: 1817:   <exp1><exp2>:
+        -: 1818:	CAT
+        -: 1819:	/ \
+        -: 1820:       /   \
+        -: 1821:   <exp1> <exp2>
+        -: 1822:
+        -: 1823:   CAT means concatenation.  */
+        -: 1824:
+        -: 1825:static bin_tree_t *
+function parse_branch called 628 returned 100% blocks executed 67%
+      628: 1826:parse_branch (regexp, preg, token, syntax, nest, err)
+        -: 1827:     re_string_t *regexp;
+        -: 1828:     regex_t *preg;
+        -: 1829:     re_token_t *token;
+        -: 1830:     reg_syntax_t syntax;
+        -: 1831:     int nest;
+        -: 1832:     reg_errcode_t *err;
+        -: 1833:{
+        -: 1834:  bin_tree_t *tree, *exp;
+      628: 1835:  tree = parse_expression (regexp, preg, token, syntax, nest, err);
+call    0 returned 628
+     628*: 1836:  if (BE (*err != REG_NOERROR && tree == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 628
+branch  2 never executed
+branch  3 never executed
+    #####: 1837:    return NULL;
+        -: 1838:
+     3154: 1839:  while (token->type != OP_ALT && token->type != END_OF_RE
+branch  0 taken 1916 (fallthrough)
+branch  1 taken 610
+     4444: 1840:	 && (nest == 0 || token->type != OP_CLOSE_SUBEXP))
+branch  0 taken 2526 (fallthrough)
+branch  1 taken 2
+branch  2 taken 1892
+branch  3 taken 24 (fallthrough)
+branch  4 taken 8
+branch  5 taken 16 (fallthrough)
+        -: 1841:    {
+     1900: 1842:      exp = parse_expression (regexp, preg, token, syntax, nest, err);
+call    0 returned 1900
+    1900*: 1843:      if (BE (*err != REG_NOERROR && exp == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1900
+branch  2 never executed
+branch  3 never executed
+        -: 1844:	{
+    #####: 1845:	  free_bin_tree (tree);
+call    0 never executed
+    #####: 1846:	  return NULL;
+        -: 1847:	}
+     1900: 1848:      if (tree != NULL && exp != NULL)
+branch  0 taken 1900 (fallthrough)
+branch  1 taken 0
+branch  2 taken 1900 (fallthrough)
+branch  3 taken 0
+        -: 1849:	{
+     1900: 1850:	  tree = create_tree (tree, exp, CONCAT, 0);
+call    0 returned 1900
+     1900: 1851:	  if (tree == NULL)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1900
+        -: 1852:	    {
+    #####: 1853:	      *err = REG_ESPACE;
+    #####: 1854:	      return NULL;
+        -: 1855:	    }
+        -: 1856:	}
+    #####: 1857:      else if (tree == NULL)
+branch  0 never executed
+branch  1 never executed
+    #####: 1858:	tree = exp;
+        -: 1859:      /* Otherwise exp == NULL, we don't need to create new tree.  */
+        -: 1860:    }
+      628: 1861:  return tree;
+        -: 1862:}
+        -: 1863:
+        -: 1864:/* This function build the following tree, from regular expression a*:
+        -: 1865:	 *
+        -: 1866:	 |
+        -: 1867:	 a
+        -: 1868:*/
+        -: 1869:
+        -: 1870:static bin_tree_t *
+function parse_expression called 2528 returned 100% blocks executed 42%
+     2528: 1871:parse_expression (regexp, preg, token, syntax, nest, err)
+        -: 1872:     re_string_t *regexp;
+        -: 1873:     regex_t *preg;
+        -: 1874:     re_token_t *token;
+        -: 1875:     reg_syntax_t syntax;
+        -: 1876:     int nest;
+        -: 1877:     reg_errcode_t *err;
+        -: 1878:{
+     2528: 1879:  re_dfa_t *dfa = (re_dfa_t *) preg->buffer;
+        -: 1880:  bin_tree_t *tree;
+        -: 1881:  int new_idx;
+     2528: 1882:  switch (token->type)
+branch  0 taken 2120
+branch  1 taken 16
+branch  2 taken 9
+branch  3 taken 0
+branch  4 taken 8
+branch  5 taken 0
+branch  6 taken 0
+branch  7 taken 254
+branch  8 taken 121
+branch  9 taken 0
+branch 10 taken 0
+branch 11 taken 0
+branch 12 taken 0
+branch 13 taken 0
+        -: 1883:    {
+     2120: 1884:    case CHARACTER:
+     2120: 1885:      new_idx = re_dfa_add_node (dfa, *token, 0);
+call    0 returned 2120
+     2120: 1886:      tree = create_tree (NULL, NULL, 0, new_idx);
+call    0 returned 2120
+     2120: 1887:      if (BE (new_idx == -1 || tree == NULL, 0))
+branch  0 taken 2120 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 2120
+        -: 1888:	{
+    #####: 1889:	  *err = REG_ESPACE;
+    #####: 1890:	  return NULL;
+        -: 1891:	}
+        -: 1892:#ifdef RE_ENABLE_I18N
+        -: 1893:      if (MB_CUR_MAX > 1)
+        -: 1894:	{
+        -: 1895:	  while (!re_string_eoi (regexp)
+        -: 1896:		 && !re_string_first_byte (regexp, re_string_cur_idx (regexp)))
+        -: 1897:	    {
+        -: 1898:	      bin_tree_t *mbc_remain;
+        -: 1899:	      *token = fetch_token (regexp, syntax);
+        -: 1900:	      new_idx = re_dfa_add_node (dfa, *token, 0);
+        -: 1901:	      mbc_remain = create_tree (NULL, NULL, 0, new_idx);
+        -: 1902:	      tree = create_tree (tree, mbc_remain, CONCAT, 0);
+        -: 1903:	      if (BE (new_idx == -1 || mbc_remain == NULL || tree == NULL, 0))
+        -: 1904:		{
+        -: 1905:		  *err = REG_ESPACE;
+        -: 1906:		  return NULL;
+        -: 1907:		}
+        -: 1908:	    }
+        -: 1909:	}
+        -: 1910:#endif
+     2120: 1911:      break;
+       16: 1912:    case OP_OPEN_SUBEXP:
+       16: 1913:      tree = parse_sub_exp (regexp, preg, token, syntax, nest + 1, err);
+call    0 returned 16
+      16*: 1914:      if (BE (*err != REG_NOERROR && tree == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 16
+branch  2 never executed
+branch  3 never executed
+    #####: 1915:	return NULL;
+       16: 1916:      break;
+        9: 1917:    case OP_OPEN_BRACKET:
+        9: 1918:      tree = parse_bracket_exp (regexp, dfa, token, syntax, err);
+call    0 returned 9
+       9*: 1919:      if (BE (*err != REG_NOERROR && tree == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 9
+branch  2 never executed
+branch  3 never executed
+    #####: 1920:	return NULL;
+        9: 1921:      break;
+    #####: 1922:    case OP_BACK_REF:
+    #####: 1923:      if (BE (preg->re_nsub < token->opr.idx
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -: 1924:	      || dfa->subexps[token->opr.idx - 1].end == -1, 0))
+        -: 1925:	{
+    #####: 1926:	  *err = REG_ESUBREG;
+    #####: 1927:	  return NULL;
+        -: 1928:	}
+    #####: 1929:      new_idx = re_dfa_add_node (dfa, *token, 0);
+call    0 never executed
+    #####: 1930:      tree = create_tree (NULL, NULL, 0, new_idx);
+call    0 never executed
+    #####: 1931:      if (BE (new_idx == -1 || tree == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -: 1932:	{
+    #####: 1933:	  *err = REG_ESPACE;
+    #####: 1934:	  return NULL;
+        -: 1935:	}
+    #####: 1936:      ++dfa->nbackref;
+    #####: 1937:      dfa->has_mb_node = 1;
+    #####: 1938:      break;
+        8: 1939:    case OP_DUP_ASTERISK:
+        -: 1940:    case OP_DUP_PLUS:
+        -: 1941:    case OP_DUP_QUESTION:
+        -: 1942:    case OP_OPEN_DUP_NUM:
+        8: 1943:      if (syntax & RE_CONTEXT_INVALID_OPS)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 8
+        -: 1944:	{
+    #####: 1945:	  *err = REG_BADRPT;
+    #####: 1946:	  return NULL;
+        -: 1947:	}
+        8: 1948:      else if (syntax & RE_CONTEXT_INDEP_OPS)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 8
+        -: 1949:	{
+    #####: 1950:	  *token = fetch_token (regexp, syntax);
+call    0 never executed
+    #####: 1951:	  return parse_expression (regexp, preg, token, syntax, nest, err);
+call    0 never executed
+        -: 1952:	}
+        -: 1953:      /* else fall through  */
+        -: 1954:    case OP_CLOSE_SUBEXP:
+       8*: 1955:      if ((token->type == OP_CLOSE_SUBEXP) &&
+branch  0 taken 0 (fallthrough)
+branch  1 taken 8
+    #####: 1956:	  !(syntax & RE_UNMATCHED_RIGHT_PAREN_ORD))
+branch  0 never executed
+branch  1 never executed
+        -: 1957:	{
+    #####: 1958:	  *err = REG_ERPAREN;
+    #####: 1959:	  return NULL;
+        -: 1960:	}
+        -: 1961:      /* else fall through  */
+        -: 1962:    case OP_CLOSE_DUP_NUM:
+        -: 1963:      /* We treat it as a normal character.  */
+        -: 1964:
+        -: 1965:      /* Then we can these characters as normal characters.  */
+        8: 1966:      token->type = CHARACTER;
+        8: 1967:      new_idx = re_dfa_add_node (dfa, *token, 0);
+call    0 returned 8
+        8: 1968:      tree = create_tree (NULL, NULL, 0, new_idx);
+call    0 returned 8
+        8: 1969:      if (BE (new_idx == -1 || tree == NULL, 0))
+branch  0 taken 8 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 8
+        -: 1970:	{
+    #####: 1971:	  *err = REG_ESPACE;
+    #####: 1972:	  return NULL;
+        -: 1973:	}
+        8: 1974:      break;
+      254: 1975:    case ANCHOR:
+      254: 1976:      if (dfa->word_char == NULL)
+branch  0 taken 203 (fallthrough)
+branch  1 taken 51
+        -: 1977:	{
+      203: 1978:	  *err = init_word_char (dfa);
+call    0 returned 203
+      203: 1979:	  if (BE (*err != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 203
+    #####: 1980:	    return NULL;
+        -: 1981:	}
+      254: 1982:      if (token->opr.ctx_type == WORD_DELIM)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 254
+        -: 1983:	{
+        -: 1984:	  bin_tree_t *tree_first, *tree_last;
+        -: 1985:	  int idx_first, idx_last;
+    #####: 1986:	  token->opr.ctx_type = WORD_FIRST;
+    #####: 1987:	  idx_first = re_dfa_add_node (dfa, *token, 0);
+call    0 never executed
+    #####: 1988:	  tree_first = create_tree (NULL, NULL, 0, idx_first);
+call    0 never executed
+    #####: 1989:	  token->opr.ctx_type = WORD_LAST;
+    #####: 1990:	  idx_last = re_dfa_add_node (dfa, *token, 0);
+call    0 never executed
+    #####: 1991:	  tree_last = create_tree (NULL, NULL, 0, idx_last);
+call    0 never executed
+    #####: 1992:	  token->type = OP_ALT;
+    #####: 1993:	  new_idx = re_dfa_add_node (dfa, *token, 0);
+call    0 never executed
+    #####: 1994:	  tree = create_tree (tree_first, tree_last, 0, new_idx);
+call    0 never executed
+    #####: 1995:	  if (BE (idx_first == -1 || idx_last == -1 || new_idx == -1
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+branch  4 never executed
+branch  5 never executed
+branch  6 never executed
+branch  7 never executed
+branch  8 never executed
+branch  9 never executed
+branch 10 never executed
+branch 11 never executed
+branch 12 never executed
+branch 13 never executed
+branch 14 never executed
+branch 15 never executed
+branch 16 never executed
+branch 17 never executed
+branch 18 never executed
+branch 19 never executed
+        -: 1996:		  || tree_first == NULL || tree_last == NULL
+        -: 1997:		  || tree == NULL, 0))
+        -: 1998:	    {
+    #####: 1999:	      *err = REG_ESPACE;
+    #####: 2000:	      return NULL;
+        -: 2001:	    }
+        -: 2002:	}
+        -: 2003:      else
+        -: 2004:	{
+      254: 2005:	  new_idx = re_dfa_add_node (dfa, *token, 0);
+call    0 returned 254
+      254: 2006:	  tree = create_tree (NULL, NULL, 0, new_idx);
+call    0 returned 254
+      254: 2007:	  if (BE (new_idx == -1 || tree == NULL, 0))
+branch  0 taken 254 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 254
+        -: 2008:	    {
+    #####: 2009:	      *err = REG_ESPACE;
+    #####: 2010:	      return NULL;
+        -: 2011:	    }
+        -: 2012:	}
+        -: 2013:      /* We must return here, since ANCHORs can't be followed
+        -: 2014:	 by repetition operators.
+        -: 2015:	 eg. RE"^*" is invalid or "<ANCHOR(^)><CHAR(*)>",
+        -: 2016:	     it must not be "<ANCHOR(^)><REPEAT(*)>".  */
+      254: 2017:      *token = fetch_token (regexp, syntax);
+call    0 returned 254
+      254: 2018:      return tree;
+      121: 2019:    case OP_PERIOD:
+      121: 2020:      new_idx = re_dfa_add_node (dfa, *token, 0);
+call    0 returned 121
+      121: 2021:      tree = create_tree (NULL, NULL, 0, new_idx);
+call    0 returned 121
+      121: 2022:      if (BE (new_idx == -1 || tree == NULL, 0))
+branch  0 taken 121 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 121
+        -: 2023:	{
+    #####: 2024:	  *err = REG_ESPACE;
+    #####: 2025:	  return NULL;
+        -: 2026:	}
+      121: 2027:      if (MB_CUR_MAX > 1)
+call    0 returned 121
+branch  1 taken 0 (fallthrough)
+branch  2 taken 121
+    #####: 2028:	dfa->has_mb_node = 1;
+      121: 2029:      break;
+    #####: 2030:    case OP_WORD:
+    #####: 2031:      tree = build_word_op (dfa, 0, err);
+call    0 never executed
+    #####: 2032:      if (BE (*err != REG_NOERROR && tree == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 2033:	return NULL;
+    #####: 2034:      break;
+    #####: 2035:    case OP_NOTWORD:
+    #####: 2036:      tree = build_word_op (dfa, 1, err);
+call    0 never executed
+    #####: 2037:      if (BE (*err != REG_NOERROR && tree == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 2038:	return NULL;
+    #####: 2039:      break;
+    #####: 2040:    case OP_ALT:
+        -: 2041:    case END_OF_RE:
+    #####: 2042:      return NULL;
+    #####: 2043:    case BACK_SLASH:
+    #####: 2044:      *err = REG_EESCAPE;
+    #####: 2045:      return NULL;
+    #####: 2046:    default:
+        -: 2047:      /* Must not happen?  */
+        -: 2048:#ifdef DEBUG
+        -: 2049:      assert (0);
+        -: 2050:#endif
+    #####: 2051:      return NULL;
+        -: 2052:    }
+     2274: 2053:  *token = fetch_token (regexp, syntax);
+call    0 returned 2274
+        -: 2054:
+     4549: 2055:  while (token->type == OP_DUP_ASTERISK || token->type == OP_DUP_PLUS
+branch  0 taken 0
+branch  1 taken 2275 (fallthrough)
+     4679: 2056:	 || token->type == OP_DUP_QUESTION || token->type == OP_OPEN_DUP_NUM)
+branch  0 taken 129
+branch  1 taken 2275 (fallthrough)
+branch  2 taken 0
+branch  3 taken 2275 (fallthrough)
+branch  4 taken 1
+branch  5 taken 2274 (fallthrough)
+        -: 2057:    {
+      130: 2058:      tree = parse_dup_op (tree, regexp, dfa, token, syntax, err);
+call    0 returned 130
+     130*: 2059:      if (BE (*err != REG_NOERROR && tree == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 130
+branch  2 never executed
+branch  3 never executed
+    #####: 2060:	return NULL;
+      130: 2061:      dfa->has_plural_match = 1;
+        -: 2062:    }
+        -: 2063:
+     2274: 2064:  return tree;
+        -: 2065:}
+        -: 2066:
+        -: 2067:/* This function build the following tree, from regular expression
+        -: 2068:   (<reg_exp>):
+        -: 2069:	 SUBEXP
+        -: 2070:	    |
+        -: 2071:	<reg_exp>
+        -: 2072:*/
+        -: 2073:
+        -: 2074:static bin_tree_t *
+function parse_sub_exp called 16 returned 100% blocks executed 71%
+       16: 2075:parse_sub_exp (regexp, preg, token, syntax, nest, err)
+        -: 2076:     re_string_t *regexp;
+        -: 2077:     regex_t *preg;
+        -: 2078:     re_token_t *token;
+        -: 2079:     reg_syntax_t syntax;
+        -: 2080:     int nest;
+        -: 2081:     reg_errcode_t *err;
+        -: 2082:{
+       16: 2083:  re_dfa_t *dfa = (re_dfa_t *) preg->buffer;
+        -: 2084:  bin_tree_t *tree, *left_par, *right_par;
+        -: 2085:  size_t cur_nsub;
+        -: 2086:  int new_idx;
+       16: 2087:  cur_nsub = preg->re_nsub++;
+       16: 2088:  if (dfa->subexps_alloc < preg->re_nsub)
+branch  0 taken 8 (fallthrough)
+branch  1 taken 8
+        -: 2089:    {
+        -: 2090:      re_subexp_t *new_array;
+        8: 2091:      dfa->subexps_alloc *= 2;
+        8: 2092:      new_array = re_realloc (dfa->subexps, re_subexp_t, dfa->subexps_alloc);
+        8: 2093:      if (BE (new_array == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 8
+        -: 2094:	{
+    #####: 2095:	  dfa->subexps_alloc /= 2;
+    #####: 2096:	  *err = REG_ESPACE;
+    #####: 2097:	  return NULL;
+        -: 2098:	}
+        8: 2099:      dfa->subexps = new_array;
+        -: 2100:    }
+       16: 2101:  dfa->subexps[cur_nsub].start = dfa->nodes_len;
+       16: 2102:  dfa->subexps[cur_nsub].end = -1;
+        -: 2103:
+       16: 2104:  new_idx = re_dfa_add_node (dfa, *token, 0);
+call    0 returned 16
+       16: 2105:  left_par = create_tree (NULL, NULL, 0, new_idx);
+call    0 returned 16
+       16: 2106:  if (BE (new_idx == -1 || left_par == NULL, 0))
+branch  0 taken 16 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+        -: 2107:    {
+    #####: 2108:      *err = REG_ESPACE;
+    #####: 2109:      return NULL;
+        -: 2110:    }
+       16: 2111:  dfa->nodes[new_idx].opr.idx = cur_nsub;
+       16: 2112:  *token = fetch_token (regexp, syntax);
+call    0 returned 16
+        -: 2113:
+        -: 2114:  /* The subexpression may be a null string.  */
+       16: 2115:  if (token->type == OP_CLOSE_SUBEXP)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 16
+    #####: 2116:    tree = NULL;
+        -: 2117:  else
+        -: 2118:    {
+       16: 2119:      tree = parse_reg_exp (regexp, preg, token, syntax, nest, err);
+call    0 returned 16
+      16*: 2120:      if (BE (*err != REG_NOERROR && tree == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 16
+branch  2 never executed
+branch  3 never executed
+    #####: 2121:	return NULL;
+        -: 2122:    }
+       16: 2123:  if (BE (token->type != OP_CLOSE_SUBEXP, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 16
+        -: 2124:    {
+    #####: 2125:      free_bin_tree (tree);
+call    0 never executed
+    #####: 2126:      *err = REG_BADPAT;
+    #####: 2127:      return NULL;
+        -: 2128:    }
+       16: 2129:  new_idx = re_dfa_add_node (dfa, *token, 0);
+call    0 returned 16
+       16: 2130:  dfa->subexps[cur_nsub].end = dfa->nodes_len;
+       16: 2131:  right_par = create_tree (NULL, NULL, 0, new_idx);
+call    0 returned 16
+       16: 2132:  tree = ((tree == NULL) ? right_par
+      16*: 2133:	  : create_tree (tree, right_par, CONCAT, 0));
+branch  0 taken 16 (fallthrough)
+branch  1 taken 0
+call    2 returned 16
+       16: 2134:  tree = create_tree (left_par, tree, CONCAT, 0);
+call    0 returned 16
+      16*: 2135:  if (BE (new_idx == -1 || right_par == NULL || tree == NULL, 0))
+branch  0 taken 16 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 16
+branch  4 taken 16 (fallthrough)
+branch  5 taken 0
+branch  6 taken 0 (fallthrough)
+branch  7 taken 16
+        -: 2136:    {
+    #####: 2137:      *err = REG_ESPACE;
+    #####: 2138:      return NULL;
+        -: 2139:    }
+       16: 2140:  dfa->nodes[new_idx].opr.idx = cur_nsub;
+        -: 2141:
+       16: 2142:  return tree;
+        -: 2143:}
+        -: 2144:
+        -: 2145:/* This function parse repetition operators like "*", "+", "{1,3}" etc.  */
+        -: 2146:
+        -: 2147:static bin_tree_t *
+function parse_dup_op called 130 returned 100% blocks executed 39%
+      130: 2148:parse_dup_op (dup_elem, regexp, dfa, token, syntax, err)
+        -: 2149:     bin_tree_t *dup_elem;
+        -: 2150:     re_string_t *regexp;
+        -: 2151:     re_dfa_t *dfa;
+        -: 2152:     re_token_t *token;
+        -: 2153:     reg_syntax_t syntax;
+        -: 2154:     reg_errcode_t *err;
+        -: 2155:{
+        -: 2156:  re_token_t dup_token;
+      130: 2157:  bin_tree_t *tree = dup_elem, *work_tree;
+      130: 2158:  int new_idx, start_idx = re_string_cur_idx (regexp);
+      130: 2159:  re_token_t start_token = *token;
+      130: 2160:  if (token->type == OP_OPEN_DUP_NUM)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 129
+        -: 2161:    {
+        -: 2162:      int i;
+        1: 2163:      int end = 0;
+        1: 2164:      int start = fetch_number (regexp, token, syntax);
+call    0 returned 1
+        -: 2165:      bin_tree_t *elem;
+        1: 2166:      if (start == -1)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+        -: 2167:	{
+    #####: 2168:	  if (token->type == CHARACTER && token->opr.c == ',')
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 2169:	    start = 0; /* We treat "{,m}" as "{0,m}".  */
+        -: 2170:	  else
+        -: 2171:	    {
+    #####: 2172:	      *err = REG_BADBR; /* <re>{} is invalid.  */
+    #####: 2173:	      return NULL;
+        -: 2174:	    }
+        -: 2175:	}
+        1: 2176:      if (BE (start != -2, 1))
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        -: 2177:	{
+        -: 2178:	  /* We treat "{n}" as "{n,n}".  */
+        1: 2179:	  end = ((token->type == OP_CLOSE_DUP_NUM) ? start
+       3*: 2180:		 : ((token->type == CHARACTER && token->opr.c == ',')
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+branch  2 taken 1 (fallthrough)
+branch  3 taken 0
+       2*: 2181:		    ? fetch_number (regexp, token, syntax) : -2));
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+call    2 returned 1
+        -: 2182:	}
+        1: 2183:      if (BE (start == -2 || end == -2, 0))
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+        -: 2184:	{
+        -: 2185:	  /* Invalid sequence.  */
+    #####: 2186:	  if (token->type == OP_CLOSE_DUP_NUM)
+branch  0 never executed
+branch  1 never executed
+    #####: 2187:	    goto parse_dup_op_invalid_interval;
+        -: 2188:	  else
+    #####: 2189:	    goto parse_dup_op_ebrace;
+        -: 2190:	}
+       1*: 2191:      if (BE (start == 0 && end == 0, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+branch  2 never executed
+branch  3 never executed
+        -: 2192:	{
+        -: 2193:	  /* We treat "<re>{0}" and "<re>{0,0}" as null string.  */
+    #####: 2194:	  *token = fetch_token (regexp, syntax);
+call    0 never executed
+    #####: 2195:	  free_bin_tree (dup_elem);
+call    0 never executed
+    #####: 2196:	  return NULL;
+        -: 2197:	}
+        -: 2198:
+        -: 2199:      /* Extract "<re>{n,m}" to "<re><re>...<re><re>{0,<m-n>}".  */
+        1: 2200:      elem = tree;
+        2: 2201:      for (i = 0; i < start; ++i)
+branch  0 taken 1
+branch  1 taken 1 (fallthrough)
+        1: 2202:	if (i != 0)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+        -: 2203:	  {
+    #####: 2204:	    work_tree = duplicate_tree (elem, dfa);
+call    0 never executed
+    #####: 2205:	    tree = create_tree (tree, work_tree, CONCAT, 0);
+call    0 never executed
+    #####: 2206:	    if (BE (work_tree == NULL || tree == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 2207:	      goto parse_dup_op_espace;
+        -: 2208:	  }
+        -: 2209:
+        1: 2210:      if (end == -1)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+        -: 2211:	{
+        -: 2212:	  /* We treat "<re>{0,}" as "<re>*".  */
+    #####: 2213:	  dup_token.type = OP_DUP_ASTERISK;
+    #####: 2214:	  if (start > 0)
+branch  0 never executed
+branch  1 never executed
+        -: 2215:	    {
+    #####: 2216:	      elem = duplicate_tree (elem, dfa);
+call    0 never executed
+    #####: 2217:	      new_idx = re_dfa_add_node (dfa, dup_token, 0);
+call    0 never executed
+    #####: 2218:	      work_tree = create_tree (elem, NULL, 0, new_idx);
+call    0 never executed
+    #####: 2219:	      tree = create_tree (tree, work_tree, CONCAT, 0);
+call    0 never executed
+    #####: 2220:	      if (BE (elem == NULL || new_idx == -1 || work_tree == NULL
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+branch  4 never executed
+branch  5 never executed
+branch  6 never executed
+branch  7 never executed
+branch  8 never executed
+branch  9 never executed
+branch 10 never executed
+branch 11 never executed
+        -: 2221:		      || tree == NULL, 0))
+    #####: 2222:		goto parse_dup_op_espace;
+        -: 2223:	    }
+        -: 2224:	  else
+        -: 2225:	    {
+    #####: 2226:	      new_idx = re_dfa_add_node (dfa, dup_token, 0);
+call    0 never executed
+    #####: 2227:	      tree = create_tree (elem, NULL, 0, new_idx);
+call    0 never executed
+    #####: 2228:	      if (BE (new_idx == -1 || tree == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 2229:		goto parse_dup_op_espace;
+        -: 2230:	    }
+        -: 2231:	}
+        1: 2232:      else if (end - start > 0)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        -: 2233:	{
+        -: 2234:	  /* Then extract "<re>{0,m}" to "<re>?<re>?...<re>?".  */
+        1: 2235:	  dup_token.type = OP_DUP_QUESTION;
+        1: 2236:	  if (start > 0)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        -: 2237:	    {
+        1: 2238:	      elem = duplicate_tree (elem, dfa);
+call    0 returned 1
+        1: 2239:	      new_idx = re_dfa_add_node (dfa, dup_token, 0);
+call    0 returned 1
+        1: 2240:	      elem = create_tree (elem, NULL, 0, new_idx);
+call    0 returned 1
+        1: 2241:	      tree = create_tree (tree, elem, CONCAT, 0);
+call    0 returned 1
+       1*: 2242:	      if (BE (elem == NULL || new_idx == -1 || tree == NULL, 0))
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 1
+branch  4 taken 1 (fallthrough)
+branch  5 taken 0
+branch  6 taken 0 (fallthrough)
+branch  7 taken 1
+    #####: 2243:		goto parse_dup_op_espace;
+        -: 2244:	    }
+        -: 2245:	  else
+        -: 2246:	    {
+    #####: 2247:	      new_idx = re_dfa_add_node (dfa, dup_token, 0);
+call    0 never executed
+    #####: 2248:	      tree = elem = create_tree (elem, NULL, 0, new_idx);
+call    0 never executed
+    #####: 2249:	      if (BE (new_idx == -1 || tree == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 2250:		goto parse_dup_op_espace;
+        -: 2251:	    }
+       1*: 2252:	  for (i = 1; i < end - start; ++i)
+branch  0 taken 0
+branch  1 taken 1
+        -: 2253:	    {
+    #####: 2254:	      work_tree = duplicate_tree (elem, dfa);
+call    0 never executed
+    #####: 2255:	      tree = create_tree (tree, work_tree, CONCAT, 0);
+call    0 never executed
+    #####: 2256:	      if (BE (work_tree == NULL || tree == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -: 2257:		{
+    #####: 2258:		  *err = REG_ESPACE;
+    #####: 2259:		  return NULL;
+        -: 2260:		}
+        -: 2261:	    }
+        -: 2262:	}
+        -: 2263:    }
+        -: 2264:  else
+        -: 2265:    {
+      129: 2266:      new_idx = re_dfa_add_node (dfa, *token, 0);
+call    0 returned 129
+      129: 2267:      tree = create_tree (tree, NULL, 0, new_idx);
+call    0 returned 129
+      129: 2268:      if (BE (new_idx == -1 || tree == NULL, 0))
+branch  0 taken 129 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 129
+        -: 2269:	{
+    #####: 2270:	  *err = REG_ESPACE;
+    #####: 2271:	  return NULL;
+        -: 2272:	}
+        -: 2273:    }
+      130: 2274:  *token = fetch_token (regexp, syntax);
+call    0 returned 130
+      130: 2275:  return tree;
+        -: 2276:
+    #####: 2277: parse_dup_op_espace:
+    #####: 2278:  free_bin_tree (tree);
+call    0 never executed
+    #####: 2279:  *err = REG_ESPACE;
+    #####: 2280:  return NULL;
+        -: 2281:
+    #####: 2282: parse_dup_op_ebrace:
+    #####: 2283:  if (BE (!(syntax & RE_INVALID_INTERVAL_ORD), 0))
+branch  0 never executed
+branch  1 never executed
+        -: 2284:    {
+    #####: 2285:      *err = REG_EBRACE;
+    #####: 2286:      return NULL;
+        -: 2287:    }
+    #####: 2288:  goto parse_dup_op_rollback;
+    #####: 2289: parse_dup_op_invalid_interval:
+    #####: 2290:  if (BE (!(syntax & RE_INVALID_INTERVAL_ORD), 0))
+branch  0 never executed
+branch  1 never executed
+        -: 2291:    {
+    #####: 2292:      *err = REG_BADBR;
+    #####: 2293:      return NULL;
+        -: 2294:    }
+    #####: 2295: parse_dup_op_rollback:
+    #####: 2296:  re_string_set_index (regexp, start_idx);
+    #####: 2297:  *token = start_token;
+    #####: 2298:  token->type = CHARACTER;
+    #####: 2299:  return dup_elem;
+        -: 2300:}
+        -: 2301:
+        -: 2302:/* Size of the names for collating symbol/equivalence_class/character_class.
+        -: 2303:   I'm not sure, but maybe enough.  */
+        -: 2304:#define BRACKET_NAME_BUF_SIZE 32
+        -: 2305:
+        -: 2306:#ifndef _LIBC
+        -: 2307:  /* Local function for parse_bracket_exp only used in case of NOT _LIBC.
+        -: 2308:     Build the range expression which starts from START_ELEM, and ends
+        -: 2309:     at END_ELEM.  The result are written to MBCSET and SBCSET.
+        -: 2310:     RANGE_ALLOC is the allocated size of mbcset->range_starts, and
+        -: 2311:     mbcset->range_ends, is a pointer argument sinse we may
+        -: 2312:     update it.  */
+        -: 2313:
+        -: 2314:static reg_errcode_t
+        -: 2315:# ifdef RE_ENABLE_I18N
+        -: 2316:build_range_exp (sbcset, mbcset, range_alloc, start_elem, end_elem)
+        -: 2317:     re_charset_t *mbcset;
+        -: 2318:     int *range_alloc;
+        -: 2319:# else /* not RE_ENABLE_I18N */
+function build_range_exp called 0 returned 0% blocks executed 0%
+    #####: 2320:build_range_exp (sbcset, start_elem, end_elem)
+        -: 2321:# endif /* not RE_ENABLE_I18N */
+        -: 2322:     re_bitset_ptr_t sbcset;
+        -: 2323:     bracket_elem_t *start_elem, *end_elem;
+        -: 2324:{
+        -: 2325:  unsigned int start_ch, end_ch;
+        -: 2326:  /* Equivalence Classes and Character Classes can't be a range start/end.  */
+    #####: 2327:  if (BE (start_elem->type == EQUIV_CLASS || start_elem->type == CHAR_CLASS
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+branch  4 never executed
+branch  5 never executed
+branch  6 never executed
+branch  7 never executed
+branch  8 never executed
+branch  9 never executed
+branch 10 never executed
+branch 11 never executed
+        -: 2328:	  || end_elem->type == EQUIV_CLASS || end_elem->type == CHAR_CLASS,
+        -: 2329:	  0))
+    #####: 2330:    return REG_ERANGE;
+        -: 2331:
+        -: 2332:  /* We can handle no multi character collating elements without libc
+        -: 2333:     support.  */
+    #####: 2334:  if (BE ((start_elem->type == COLL_SYM
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+branch  4 never executed
+branch  5 never executed
+branch  6 never executed
+branch  7 never executed
+branch  8 never executed
+branch  9 never executed
+branch 10 never executed
+branch 11 never executed
+        -: 2335:	   && strlen ((char *) start_elem->opr.name) > 1)
+        -: 2336:	  || (end_elem->type == COLL_SYM
+        -: 2337:	      && strlen ((char *) end_elem->opr.name) > 1), 0))
+    #####: 2338:    return REG_ECOLLATE;
+        -: 2339:
+        -: 2340:# ifdef RE_ENABLE_I18N
+        -: 2341:  {
+        -: 2342:    wchar_t wc, start_wc, end_wc;
+        -: 2343:    wchar_t cmp_buf[6] = {L'\0', L'\0', L'\0', L'\0', L'\0', L'\0'};
+        -: 2344:
+        -: 2345:    start_ch = ((start_elem->type == SB_CHAR) ? start_elem->opr.ch
+        -: 2346:		: ((start_elem->type == COLL_SYM) ? start_elem->opr.name[0]
+        -: 2347:		   : 0));
+        -: 2348:    end_ch = ((end_elem->type == SB_CHAR) ? end_elem->opr.ch
+        -: 2349:	      : ((end_elem->type == COLL_SYM) ? end_elem->opr.name[0]
+        -: 2350:		 : 0));
+        -: 2351:    start_wc = ((start_elem->type == SB_CHAR || start_elem->type == COLL_SYM)
+        -: 2352:		? __btowc (start_ch) : start_elem->opr.wch);
+        -: 2353:    end_wc = ((end_elem->type == SB_CHAR || end_elem->type == COLL_SYM)
+        -: 2354:	      ? __btowc (end_ch) : end_elem->opr.wch);
+        -: 2355:    cmp_buf[0] = start_wc;
+        -: 2356:    cmp_buf[4] = end_wc;
+        -: 2357:    if (wcscoll (cmp_buf, cmp_buf + 4) > 0)
+        -: 2358:      return REG_ERANGE;
+        -: 2359:
+        -: 2360:    /* Check the space of the arrays.  */
+        -: 2361:    if (*range_alloc == mbcset->nranges)
+        -: 2362:      {
+        -: 2363:	/* There are not enough space, need realloc.  */
+        -: 2364:	wchar_t *new_array_start, *new_array_end;
+        -: 2365:	int new_nranges;
+        -: 2366:
+        -: 2367:	/* +1 in case of mbcset->nranges is 0.  */
+        -: 2368:	new_nranges = 2 * mbcset->nranges + 1;
+        -: 2369:	/* Use realloc since mbcset->range_starts and mbcset->range_ends
+        -: 2370:	   are NULL if *range_alloc == 0.  */
+        -: 2371:	new_array_start = re_realloc (mbcset->range_starts, wchar_t,
+        -: 2372:				      new_nranges);
+        -: 2373:	new_array_end = re_realloc (mbcset->range_ends, wchar_t,
+        -: 2374:				    new_nranges);
+        -: 2375:
+        -: 2376:	if (BE (new_array_start == NULL || new_array_end == NULL, 0))
+        -: 2377:	  return REG_ESPACE;
+        -: 2378:
+        -: 2379:	mbcset->range_starts = new_array_start;
+        -: 2380:	mbcset->range_ends = new_array_end;
+        -: 2381:	*range_alloc = new_nranges;
+        -: 2382:      }
+        -: 2383:
+        -: 2384:    mbcset->range_starts[mbcset->nranges] = start_wc;
+        -: 2385:    mbcset->range_ends[mbcset->nranges++] = end_wc;
+        -: 2386:
+        -: 2387:    /* Build the table for single byte characters.  */
+        -: 2388:    for (wc = 0; wc <= SBC_MAX; ++wc)
+        -: 2389:      {
+        -: 2390:	cmp_buf[2] = wc;
+        -: 2391:	if (wcscoll (cmp_buf, cmp_buf + 2) <= 0
+        -: 2392:	    && wcscoll (cmp_buf + 2, cmp_buf + 4) <= 0)
+        -: 2393:	  bitset_set (sbcset, wc);
+        -: 2394:      }
+        -: 2395:  }
+        -: 2396:# else /* not RE_ENABLE_I18N */
+        -: 2397:  {
+        -: 2398:    unsigned int ch;
+    #####: 2399:    start_ch = ((start_elem->type == SB_CHAR ) ? start_elem->opr.ch
+    #####: 2400:		: ((start_elem->type == COLL_SYM) ? start_elem->opr.name[0]
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -: 2401:		   : 0));
+    #####: 2402:    end_ch = ((end_elem->type == SB_CHAR ) ? end_elem->opr.ch
+    #####: 2403:	      : ((end_elem->type == COLL_SYM) ? end_elem->opr.name[0]
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -: 2404:		 : 0));
+    #####: 2405:    if (start_ch > end_ch)
+branch  0 never executed
+branch  1 never executed
+    #####: 2406:      return REG_ERANGE;
+        -: 2407:    /* Build the table for single byte characters.  */
+    #####: 2408:    for (ch = 0; ch <= SBC_MAX; ++ch)
+branch  0 never executed
+branch  1 never executed
+    #####: 2409:      if (start_ch <= ch  && ch <= end_ch)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 2410:	bitset_set (sbcset, ch);
+        -: 2411:  }
+        -: 2412:# endif /* not RE_ENABLE_I18N */
+    #####: 2413:  return REG_NOERROR;
+        -: 2414:}
+        -: 2415:#endif /* not _LIBC */
+        -: 2416:
+        -: 2417:#ifndef _LIBC
+        -: 2418:/* Helper function for parse_bracket_exp only used in case of NOT _LIBC..
+        -: 2419:   Build the collating element which is represented by NAME.
+        -: 2420:   The result are written to MBCSET and SBCSET.
+        -: 2421:   COLL_SYM_ALLOC is the allocated size of mbcset->coll_sym, is a
+        -: 2422:   pointer argument since we may update it.  */
+        -: 2423:
+        -: 2424:static reg_errcode_t
+        -: 2425:# ifdef RE_ENABLE_I18N
+        -: 2426:build_collating_symbol (sbcset, mbcset, coll_sym_alloc, name)
+        -: 2427:     re_charset_t *mbcset;
+        -: 2428:     int *coll_sym_alloc;
+        -: 2429:# else /* not RE_ENABLE_I18N */
+function build_collating_symbol called 0 returned 0% blocks executed 0%
+    #####: 2430:build_collating_symbol (sbcset, name)
+        -: 2431:# endif /* not RE_ENABLE_I18N */
+        -: 2432:     re_bitset_ptr_t sbcset;
+        -: 2433:     const unsigned char *name;
+        -: 2434:{
+    #####: 2435:  size_t name_len = strlen ((const char *) name);
+    #####: 2436:  if (BE (name_len != 1, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 2437:    return REG_ECOLLATE;
+        -: 2438:  else
+        -: 2439:    {
+    #####: 2440:      bitset_set (sbcset, name[0]);
+    #####: 2441:      return REG_NOERROR;
+        -: 2442:    }
+        -: 2443:}
+        -: 2444:#endif /* not _LIBC */
+        -: 2445:
+        -: 2446:/* This function parse bracket expression like "[abc]", "[a-c]",
+        -: 2447:   "[[.a-a.]]" etc.  */
+        -: 2448:
+        -: 2449:static bin_tree_t *
+function parse_bracket_exp called 9 returned 100% blocks executed 41%
+        9: 2450:parse_bracket_exp (regexp, dfa, token, syntax, err)
+        -: 2451:     re_string_t *regexp;
+        -: 2452:     re_dfa_t *dfa;
+        -: 2453:     re_token_t *token;
+        -: 2454:     reg_syntax_t syntax;
+        -: 2455:     reg_errcode_t *err;
+        -: 2456:{
+        -: 2457:#ifdef _LIBC
+        -: 2458:  const unsigned char *collseqmb;
+        -: 2459:  const char *collseqwc;
+        -: 2460:  uint32_t nrules;
+        -: 2461:  int32_t table_size;
+        -: 2462:  const int32_t *symb_table;
+        -: 2463:  const unsigned char *extra;
+        -: 2464:
+        -: 2465:  /* Local function for parse_bracket_exp used in _LIBC environement.
+        -: 2466:     Seek the collating symbol entry correspondings to NAME.
+        -: 2467:     Return the index of the symbol in the SYMB_TABLE.  */
+        -: 2468:
+        -: 2469:  static inline int32_t
+        -: 2470:  seek_collating_symbol_entry (name, name_len)
+        -: 2471:	 const unsigned char *name;
+        -: 2472:	 size_t name_len;
+        -: 2473:    {
+        -: 2474:      int32_t hash = elem_hash ((const char *) name, name_len);
+        -: 2475:      int32_t elem = hash % table_size;
+        -: 2476:      int32_t second = hash % (table_size - 2);
+        -: 2477:      while (symb_table[2 * elem] != 0)
+        -: 2478:	{
+        -: 2479:	  /* First compare the hashing value.  */
+        -: 2480:	  if (symb_table[2 * elem] == hash
+        -: 2481:	      /* Compare the length of the name.  */
+        -: 2482:	      && name_len == extra[symb_table[2 * elem + 1]]
+        -: 2483:	      /* Compare the name.  */
+        -: 2484:	      && memcmp (name, &extra[symb_table[2 * elem + 1] + 1],
+        -: 2485:			 name_len) == 0)
+        -: 2486:	    {
+        -: 2487:	      /* Yep, this is the entry.  */
+        -: 2488:	      break;
+        -: 2489:	    }
+        -: 2490:
+        -: 2491:	  /* Next entry.  */
+        -: 2492:	  elem += second;
+        -: 2493:	}
+        -: 2494:      return elem;
+        -: 2495:    }
+        -: 2496:
+        -: 2497:  /* Local function for parse_bracket_exp used in _LIBC environement.
+        -: 2498:     Look up the collation sequence value of BR_ELEM.
+        -: 2499:     Return the value if succeeded, UINT_MAX otherwise.  */
+        -: 2500:
+        -: 2501:  static inline unsigned int
+        -: 2502:  lookup_collation_sequence_value (br_elem)
+        -: 2503:	 bracket_elem_t *br_elem;
+        -: 2504:    {
+        -: 2505:      if (br_elem->type == SB_CHAR)
+        -: 2506:	{
+        -: 2507:	  /*
+        -: 2508:	  if (MB_CUR_MAX == 1)
+        -: 2509:	  */
+        -: 2510:	  if (nrules == 0)
+        -: 2511:	    return collseqmb[br_elem->opr.ch];
+        -: 2512:	  else
+        -: 2513:	    {
+        -: 2514:	      wint_t wc = __btowc (br_elem->opr.ch);
+        -: 2515:	      return collseq_table_lookup (collseqwc, wc);
+        -: 2516:	    }
+        -: 2517:	}
+        -: 2518:      else if (br_elem->type == MB_CHAR)
+        -: 2519:	{
+        -: 2520:	  return collseq_table_lookup (collseqwc, br_elem->opr.wch);
+        -: 2521:	}
+        -: 2522:      else if (br_elem->type == COLL_SYM)
+        -: 2523:	{
+        -: 2524:	  size_t sym_name_len = strlen ((char *) br_elem->opr.name);
+        -: 2525:	  if (nrules != 0)
+        -: 2526:	    {
+        -: 2527:	      int32_t elem, idx;
+        -: 2528:	      elem = seek_collating_symbol_entry (br_elem->opr.name,
+        -: 2529:						  sym_name_len);
+        -: 2530:	      if (symb_table[2 * elem] != 0)
+        -: 2531:		{
+        -: 2532:		  /* We found the entry.  */
+        -: 2533:		  idx = symb_table[2 * elem + 1];
+        -: 2534:		  /* Skip the name of collating element name.  */
+        -: 2535:		  idx += 1 + extra[idx];
+        -: 2536:		  /* Skip the byte sequence of the collating element.  */
+        -: 2537:		  idx += 1 + extra[idx];
+        -: 2538:		  /* Adjust for the alignment.  */
+        -: 2539:		  idx = (idx + 3) & ~3;
+        -: 2540:		  /* Skip the multibyte collation sequence value.  */
+        -: 2541:		  idx += sizeof (unsigned int);
+        -: 2542:		  /* Skip the wide char sequence of the collating element.  */
+        -: 2543:		  idx += sizeof (unsigned int) *
+        -: 2544:		    (1 + *(unsigned int *) (extra + idx));
+        -: 2545:		  /* Return the collation sequence value.  */
+        -: 2546:		  return *(unsigned int *) (extra + idx);
+        -: 2547:		}
+        -: 2548:	      else if (symb_table[2 * elem] == 0 && sym_name_len == 1)
+        -: 2549:		{
+        -: 2550:		  /* No valid character.  Match it as a single byte
+        -: 2551:		     character.  */
+        -: 2552:		  return collseqmb[br_elem->opr.name[0]];
+        -: 2553:		}
+        -: 2554:	    }
+        -: 2555:	  else if (sym_name_len == 1)
+        -: 2556:	    return collseqmb[br_elem->opr.name[0]];
+        -: 2557:	}
+        -: 2558:      return UINT_MAX;
+        -: 2559:    }
+        -: 2560:
+        -: 2561:  /* Local function for parse_bracket_exp used in _LIBC environement.
+        -: 2562:     Build the range expression which starts from START_ELEM, and ends
+        -: 2563:     at END_ELEM.  The result are written to MBCSET and SBCSET.
+        -: 2564:     RANGE_ALLOC is the allocated size of mbcset->range_starts, and
+        -: 2565:     mbcset->range_ends, is a pointer argument sinse we may
+        -: 2566:     update it.  */
+        -: 2567:
+        -: 2568:  static inline reg_errcode_t
+        -: 2569:# ifdef RE_ENABLE_I18N
+        -: 2570:  build_range_exp (sbcset, mbcset, range_alloc, start_elem, end_elem)
+        -: 2571:	 re_charset_t *mbcset;
+        -: 2572:	 int *range_alloc;
+        -: 2573:# else /* not RE_ENABLE_I18N */
+        -: 2574:  build_range_exp (sbcset, start_elem, end_elem)
+        -: 2575:# endif /* not RE_ENABLE_I18N */
+        -: 2576:	 re_bitset_ptr_t sbcset;
+        -: 2577:	 bracket_elem_t *start_elem, *end_elem;
+        -: 2578:    {
+        -: 2579:      unsigned int ch;
+        -: 2580:      uint32_t start_collseq;
+        -: 2581:      uint32_t end_collseq;
+        -: 2582:
+        -: 2583:# ifdef RE_ENABLE_I18N
+        -: 2584:      /* Check the space of the arrays.  */
+        -: 2585:      if (*range_alloc == mbcset->nranges)
+        -: 2586:	{
+        -: 2587:	  /* There are not enough space, need realloc.  */
+        -: 2588:	  uint32_t *new_array_start;
+        -: 2589:	  uint32_t *new_array_end;
+        -: 2590:	  int new_nranges;
+        -: 2591:
+        -: 2592:	  /* +1 in case of mbcset->nranges is 0.  */
+        -: 2593:	  new_nranges = 2 * mbcset->nranges + 1;
+        -: 2594:	  /* Use realloc since mbcset->range_starts and mbcset->range_ends
+        -: 2595:	     are NULL if *range_alloc == 0.  */
+        -: 2596:	  new_array_start = re_realloc (mbcset->range_starts, uint32_t,
+        -: 2597:					new_nranges);
+        -: 2598:	  new_array_end = re_realloc (mbcset->range_ends, uint32_t,
+        -: 2599:				      new_nranges);
+        -: 2600:
+        -: 2601:	  if (BE (new_array_start == NULL || new_array_end == NULL, 0))
+        -: 2602:	    return REG_ESPACE;
+        -: 2603:
+        -: 2604:	  mbcset->range_starts = new_array_start;
+        -: 2605:	  mbcset->range_ends = new_array_end;
+        -: 2606:	  *range_alloc = new_nranges;
+        -: 2607:	}
+        -: 2608:# endif /* RE_ENABLE_I18N */
+        -: 2609:
+        -: 2610:      /* Equivalence Classes and Character Classes can't be a range
+        -: 2611:	 start/end.  */
+        -: 2612:      if (BE (start_elem->type == EQUIV_CLASS || start_elem->type == CHAR_CLASS
+        -: 2613:	      || end_elem->type == EQUIV_CLASS || end_elem->type == CHAR_CLASS,
+        -: 2614:	      0))
+        -: 2615:	return REG_ERANGE;
+        -: 2616:
+        -: 2617:      start_collseq = lookup_collation_sequence_value (start_elem);
+        -: 2618:      end_collseq = lookup_collation_sequence_value (end_elem);
+        -: 2619:      /* Check start/end collation sequence values.  */
+        -: 2620:      if (BE (start_collseq == UINT_MAX || end_collseq == UINT_MAX, 0))
+        -: 2621:	return REG_ECOLLATE;
+        -: 2622:      if (BE ((syntax & RE_NO_EMPTY_RANGES) && start_collseq > end_collseq, 0))
+        -: 2623:	return REG_ERANGE;
+        -: 2624:
+        -: 2625:# ifdef RE_ENABLE_I18N
+        -: 2626:      /* Got valid collation sequence values, add them as a new entry.  */
+        -: 2627:      mbcset->range_starts[mbcset->nranges] = start_collseq;
+        -: 2628:      mbcset->range_ends[mbcset->nranges++] = end_collseq;
+        -: 2629:# endif /* RE_ENABLE_I18N */
+        -: 2630:
+        -: 2631:      /* Build the table for single byte characters.  */
+        -: 2632:      for (ch = 0; ch <= SBC_MAX; ch++)
+        -: 2633:	{
+        -: 2634:	  uint32_t ch_collseq;
+        -: 2635:	  /*
+        -: 2636:	  if (MB_CUR_MAX == 1)
+        -: 2637:	  */
+        -: 2638:	  if (nrules == 0)
+        -: 2639:	    ch_collseq = collseqmb[ch];
+        -: 2640:	  else
+        -: 2641:	    ch_collseq = collseq_table_lookup (collseqwc, __btowc (ch));
+        -: 2642:	  if (start_collseq <= ch_collseq && ch_collseq <= end_collseq)
+        -: 2643:	    bitset_set (sbcset, ch);
+        -: 2644:	}
+        -: 2645:      return REG_NOERROR;
+        -: 2646:    }
+        -: 2647:
+        -: 2648:  /* Local function for parse_bracket_exp used in _LIBC environement.
+        -: 2649:     Build the collating element which is represented by NAME.
+        -: 2650:     The result are written to MBCSET and SBCSET.
+        -: 2651:     COLL_SYM_ALLOC is the allocated size of mbcset->coll_sym, is a
+        -: 2652:     pointer argument sinse we may update it.  */
+        -: 2653:
+        -: 2654:  static inline reg_errcode_t
+        -: 2655:# ifdef RE_ENABLE_I18N
+        -: 2656:  build_collating_symbol (sbcset, mbcset, coll_sym_alloc, name)
+        -: 2657:	 re_charset_t *mbcset;
+        -: 2658:	 int *coll_sym_alloc;
+        -: 2659:# else /* not RE_ENABLE_I18N */
+        -: 2660:  build_collating_symbol (sbcset, name)
+        -: 2661:# endif /* not RE_ENABLE_I18N */
+        -: 2662:	 re_bitset_ptr_t sbcset;
+        -: 2663:	 const unsigned char *name;
+        -: 2664:    {
+        -: 2665:      int32_t elem, idx;
+        -: 2666:      size_t name_len = strlen ((const char *) name);
+        -: 2667:      if (nrules != 0)
+        -: 2668:	{
+        -: 2669:	  elem = seek_collating_symbol_entry (name, name_len);
+        -: 2670:	  if (symb_table[2 * elem] != 0)
+        -: 2671:	    {
+        -: 2672:	      /* We found the entry.  */
+        -: 2673:	      idx = symb_table[2 * elem + 1];
+        -: 2674:	      /* Skip the name of collating element name.  */
+        -: 2675:	      idx += 1 + extra[idx];
+        -: 2676:	    }
+        -: 2677:	  else if (symb_table[2 * elem] == 0 && name_len == 1)
+        -: 2678:	    {
+        -: 2679:	      /* No valid character, treat it as a normal
+        -: 2680:		 character.  */
+        -: 2681:	      bitset_set (sbcset, name[0]);
+        -: 2682:	      return REG_NOERROR;
+        -: 2683:	    }
+        -: 2684:	  else
+        -: 2685:	    return REG_ECOLLATE;
+        -: 2686:
+        -: 2687:# ifdef RE_ENABLE_I18N
+        -: 2688:	  /* Got valid collation sequence, add it as a new entry.  */
+        -: 2689:	  /* Check the space of the arrays.  */
+        -: 2690:	  if (*coll_sym_alloc == mbcset->ncoll_syms)
+        -: 2691:	    {
+        -: 2692:	      /* Not enough, realloc it.  */
+        -: 2693:	      /* +1 in case of mbcset->ncoll_syms is 0.  */
+        -: 2694:	      *coll_sym_alloc = 2 * mbcset->ncoll_syms + 1;
+        -: 2695:	      /* Use realloc since mbcset->coll_syms is NULL
+        -: 2696:		 if *alloc == 0.  */
+        -: 2697:	      mbcset->coll_syms = re_realloc (mbcset->coll_syms, int32_t,
+        -: 2698:					      *coll_sym_alloc);
+        -: 2699:	      if (BE (mbcset->coll_syms == NULL, 0))
+        -: 2700:		return REG_ESPACE;
+        -: 2701:	    }
+        -: 2702:	  mbcset->coll_syms[mbcset->ncoll_syms++] = idx;
+        -: 2703:# endif /* RE_ENABLE_I18N */
+        -: 2704:	  return REG_NOERROR;
+        -: 2705:	}
+        -: 2706:      else
+        -: 2707:	{
+        -: 2708:	  if (BE (name_len != 1, 0))
+        -: 2709:	    return REG_ECOLLATE;
+        -: 2710:	  else
+        -: 2711:	    {
+        -: 2712:	      bitset_set (sbcset, name[0]);
+        -: 2713:	      return REG_NOERROR;
+        -: 2714:	    }
+        -: 2715:	}
+        -: 2716:    }
+        -: 2717:#endif
+        -: 2718:
+        -: 2719:  re_token_t br_token;
+        -: 2720:  re_bitset_ptr_t sbcset;
+        -: 2721:#ifdef RE_ENABLE_I18N
+        -: 2722:  re_charset_t *mbcset;
+        -: 2723:  int coll_sym_alloc = 0, range_alloc = 0, mbchar_alloc = 0;
+        -: 2724:  int equiv_class_alloc = 0, char_class_alloc = 0;
+        -: 2725:#else /* not RE_ENABLE_I18N */
+        9: 2726:  int non_match = 0;
+        -: 2727:#endif /* not RE_ENABLE_I18N */
+        -: 2728:  bin_tree_t *work_tree;
+        -: 2729:  int token_len, new_idx;
+        -: 2730:#ifdef _LIBC
+        -: 2731:  collseqmb = (const unsigned char *)
+        -: 2732:    _NL_CURRENT (LC_COLLATE, _NL_COLLATE_COLLSEQMB);
+        -: 2733:  nrules = _NL_CURRENT_WORD (LC_COLLATE, _NL_COLLATE_NRULES);
+        -: 2734:  if (nrules)
+        -: 2735:    {
+        -: 2736:      /*
+        -: 2737:      if (MB_CUR_MAX > 1)
+        -: 2738:      */
+        -: 2739:	collseqwc = _NL_CURRENT (LC_COLLATE, _NL_COLLATE_COLLSEQWC);
+        -: 2740:      table_size = _NL_CURRENT_WORD (LC_COLLATE, _NL_COLLATE_SYMB_HASH_SIZEMB);
+        -: 2741:      symb_table = (const int32_t *) _NL_CURRENT (LC_COLLATE,
+        -: 2742:						  _NL_COLLATE_SYMB_TABLEMB);
+        -: 2743:      extra = (const unsigned char *) _NL_CURRENT (LC_COLLATE,
+        -: 2744:						   _NL_COLLATE_SYMB_EXTRAMB);
+        -: 2745:    }
+        -: 2746:#endif
+        9: 2747:  sbcset = (re_bitset_ptr_t) calloc (sizeof (unsigned int), BITSET_UINTS);
+        -: 2748:#ifdef RE_ENABLE_I18N
+        -: 2749:  mbcset = (re_charset_t *) calloc (sizeof (re_charset_t), 1);
+        -: 2750:#endif /* RE_ENABLE_I18N */
+        -: 2751:#ifdef RE_ENABLE_I18N
+        -: 2752:  if (BE (sbcset == NULL || mbcset == NULL, 0))
+        -: 2753:#else
+        9: 2754:  if (BE (sbcset == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 9
+        -: 2755:#endif /* RE_ENABLE_I18N */
+        -: 2756:    {
+    #####: 2757:      *err = REG_ESPACE;
+    #####: 2758:      return NULL;
+        -: 2759:    }
+        -: 2760:
+        9: 2761:  token_len = peek_token_bracket (token, regexp, syntax);
+call    0 returned 9
+        9: 2762:  if (BE (token->type == END_OF_RE, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 9
+        -: 2763:    {
+    #####: 2764:      *err = REG_BADPAT;
+    #####: 2765:      goto parse_bracket_exp_free_return;
+        -: 2766:    }
+        9: 2767:  if (token->type == OP_NON_MATCH_LIST)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 8
+        -: 2768:    {
+        -: 2769:#ifdef RE_ENABLE_I18N
+        -: 2770:      int i;
+        -: 2771:      mbcset->non_match = 1;
+        -: 2772:#else /* not RE_ENABLE_I18N */
+        1: 2773:      non_match = 1;
+        -: 2774:#endif /* not RE_ENABLE_I18N */
+        1: 2775:      if (syntax & RE_HAT_LISTS_NOT_NEWLINE)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+    #####: 2776:	bitset_set (sbcset, '\0');
+        1: 2777:      re_string_skip_bytes (regexp, token_len); /* Skip a token.  */
+        1: 2778:      token_len = peek_token_bracket (token, regexp, syntax);
+call    0 returned 1
+        1: 2779:      if (BE (token->type == END_OF_RE, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+        -: 2780:	{
+    #####: 2781:	  *err = REG_BADPAT;
+    #####: 2782:	  goto parse_bracket_exp_free_return;
+        -: 2783:	}
+        -: 2784:#ifdef RE_ENABLE_I18N
+        -: 2785:      if (MB_CUR_MAX > 1)
+        -: 2786:	for (i = 0; i < SBC_MAX; ++i)
+        -: 2787:	  if (__btowc (i) == WEOF)
+        -: 2788:	    bitset_set (sbcset, i);
+        -: 2789:#endif /* RE_ENABLE_I18N */
+        -: 2790:    }
+        -: 2791:
+        -: 2792:  /* We treat the first ']' as a normal character.  */
+        9: 2793:  if (token->type == OP_CLOSE_BRACKET)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 9
+    #####: 2794:    token->type = CHARACTER;
+        -: 2795:
+        -: 2796:  while (1)
+       30: 2797:    {
+        -: 2798:      bracket_elem_t start_elem, end_elem;
+        -: 2799:      unsigned char start_name_buf[BRACKET_NAME_BUF_SIZE];
+        -: 2800:      unsigned char end_name_buf[BRACKET_NAME_BUF_SIZE];
+        -: 2801:      reg_errcode_t ret;
+       39: 2802:      int token_len2 = 0, is_range_exp = 0;
+        -: 2803:      re_token_t token2;
+        -: 2804:
+       39: 2805:      start_elem.opr.name = start_name_buf;
+       39: 2806:      ret = parse_bracket_element (&start_elem, regexp, token, token_len, dfa,
+call    0 returned 39
+        -: 2807:				   syntax);
+       39: 2808:      if (BE (ret != REG_NOERROR, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 39
+        -: 2809:	{
+    #####: 2810:	  *err = ret;
+    #####: 2811:	  goto parse_bracket_exp_free_return;
+        -: 2812:	}
+        -: 2813:
+       39: 2814:      token_len = peek_token_bracket (token, regexp, syntax);
+call    0 returned 39
+       39: 2815:      if (BE (token->type == END_OF_RE, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 39
+        -: 2816:	{
+    #####: 2817:	  *err = REG_BADPAT;
+    #####: 2818:	  goto parse_bracket_exp_free_return;
+        -: 2819:	}
+       39: 2820:      if (token->type == OP_CHARSET_RANGE)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 39
+        -: 2821:	{
+    #####: 2822:	  re_string_skip_bytes (regexp, token_len); /* Skip '-'.  */
+    #####: 2823:	  token_len2 = peek_token_bracket (&token2, regexp, syntax);
+call    0 never executed
+    #####: 2824:	  if (BE (token->type == END_OF_RE, 0))
+branch  0 never executed
+branch  1 never executed
+        -: 2825:	    {
+    #####: 2826:	      *err = REG_BADPAT;
+    #####: 2827:	      goto parse_bracket_exp_free_return;
+        -: 2828:	    }
+    #####: 2829:	  if (token2.type == OP_CLOSE_BRACKET)
+branch  0 never executed
+branch  1 never executed
+        -: 2830:	    {
+        -: 2831:	      /* We treat the last '-' as a normal character.  */
+    #####: 2832:	      re_string_skip_bytes (regexp, -token_len);
+    #####: 2833:	      token->type = CHARACTER;
+        -: 2834:	    }
+        -: 2835:	  else
+    #####: 2836:	    is_range_exp = 1;
+        -: 2837:	}
+        -: 2838:
+       39: 2839:      if (is_range_exp == 1)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 39
+        -: 2840:	{
+    #####: 2841:	  end_elem.opr.name = end_name_buf;
+    #####: 2842:	  ret = parse_bracket_element (&end_elem, regexp, &token2, token_len2,
+call    0 never executed
+        -: 2843:				       dfa, syntax);
+    #####: 2844:	  if (BE (ret != REG_NOERROR, 0))
+branch  0 never executed
+branch  1 never executed
+        -: 2845:	    {
+    #####: 2846:	      *err = ret;
+    #####: 2847:	      goto parse_bracket_exp_free_return;
+        -: 2848:	    }
+        -: 2849:
+    #####: 2850:	  token_len = peek_token_bracket (token, regexp, syntax);
+call    0 never executed
+    #####: 2851:	  if (BE (token->type == END_OF_RE, 0))
+branch  0 never executed
+branch  1 never executed
+        -: 2852:	    {
+    #####: 2853:	      *err = REG_BADPAT;
+    #####: 2854:	      goto parse_bracket_exp_free_return;
+        -: 2855:	    }
+    #####: 2856:	  *err = build_range_exp (sbcset,
+call    0 never executed
+        -: 2857:#ifdef RE_ENABLE_I18N
+        -: 2858:				  mbcset, &range_alloc,
+        -: 2859:#endif /* RE_ENABLE_I18N */
+        -: 2860:				  &start_elem, &end_elem);
+    #####: 2861:	  if (BE (*err != REG_NOERROR, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 2862:	    goto parse_bracket_exp_free_return;
+        -: 2863:	}
+        -: 2864:      else
+        -: 2865:	{
+       39: 2866:	  switch (start_elem.type)
+branch  0 taken 39
+branch  1 taken 0
+branch  2 taken 0
+branch  3 taken 0
+branch  4 taken 0
+        -: 2867:	    {
+       39: 2868:	    case SB_CHAR:
+       39: 2869:	      bitset_set (sbcset, start_elem.opr.ch);
+       39: 2870:	      break;
+        -: 2871:#ifdef RE_ENABLE_I18N
+        -: 2872:	    case MB_CHAR:
+        -: 2873:	      /* Check whether the array has enough space.  */
+        -: 2874:	      if (mbchar_alloc == mbcset->nmbchars)
+        -: 2875:		{
+        -: 2876:		  /* Not enough, realloc it.  */
+        -: 2877:		  /* +1 in case of mbcset->nmbchars is 0.  */
+        -: 2878:		  mbchar_alloc = 2 * mbcset->nmbchars + 1;
+        -: 2879:		  /* Use realloc since array is NULL if *alloc == 0.  */
+        -: 2880:		  mbcset->mbchars = re_realloc (mbcset->mbchars, wchar_t,
+        -: 2881:						mbchar_alloc);
+        -: 2882:		  if (BE (mbcset->mbchars == NULL, 0))
+        -: 2883:		    goto parse_bracket_exp_espace;
+        -: 2884:		}
+        -: 2885:	      mbcset->mbchars[mbcset->nmbchars++] = start_elem.opr.wch;
+        -: 2886:	      break;
+        -: 2887:#endif /* RE_ENABLE_I18N */
+    #####: 2888:	    case EQUIV_CLASS:
+    #####: 2889:	      *err = build_equiv_class (sbcset,
+        -: 2890:#ifdef RE_ENABLE_I18N
+        -: 2891:					mbcset, &equiv_class_alloc,
+        -: 2892:#endif /* RE_ENABLE_I18N */
+    #####: 2893:					start_elem.opr.name);
+call    0 never executed
+    #####: 2894:	      if (BE (*err != REG_NOERROR, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 2895:		goto parse_bracket_exp_free_return;
+    #####: 2896:	      break;
+    #####: 2897:	    case COLL_SYM:
+    #####: 2898:	      *err = build_collating_symbol (sbcset,
+        -: 2899:#ifdef RE_ENABLE_I18N
+        -: 2900:					     mbcset, &coll_sym_alloc,
+        -: 2901:#endif /* RE_ENABLE_I18N */
+    #####: 2902:					     start_elem.opr.name);
+call    0 never executed
+    #####: 2903:	      if (BE (*err != REG_NOERROR, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 2904:		goto parse_bracket_exp_free_return;
+    #####: 2905:	      break;
+    #####: 2906:	    case CHAR_CLASS:
+    #####: 2907:	      ret = build_charclass (sbcset,
+        -: 2908:#ifdef RE_ENABLE_I18N
+        -: 2909:				     mbcset, &char_class_alloc,
+        -: 2910:#endif /* RE_ENABLE_I18N */
+    #####: 2911:				     start_elem.opr.name, syntax);
+call    0 never executed
+    #####: 2912:	      if (BE (ret != REG_NOERROR, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 2913:	       goto parse_bracket_exp_espace;
+    #####: 2914:	      break;
+    #####: 2915:	    default:
+    #####: 2916:	      assert (0);
+call    0 never executed
+        -: 2917:	      break;
+        -: 2918:	    }
+        -: 2919:	}
+       39: 2920:      if (token->type == OP_CLOSE_BRACKET)
+branch  0 taken 9 (fallthrough)
+branch  1 taken 30
+        9: 2921:	break;
+        -: 2922:    }
+        -: 2923:
+        9: 2924:  re_string_skip_bytes (regexp, token_len); /* Skip a token.  */
+        -: 2925:
+        -: 2926:  /* If it is non-matching list.  */
+        -: 2927:#ifdef RE_ENABLE_I18N
+        -: 2928:  if (mbcset->non_match)
+        -: 2929:#else /* not RE_ENABLE_I18N */
+        9: 2930:  if (non_match)
+branch  0 taken 1
+branch  1 taken 8
+        -: 2931:#endif /* not RE_ENABLE_I18N */
+        1: 2932:    bitset_not (sbcset);
+call    0 returned 1
+        -: 2933:
+        -: 2934:  /* Build a tree for simple bracket.  */
+        9: 2935:  br_token.type = SIMPLE_BRACKET;
+        9: 2936:  br_token.opr.sbcset = sbcset;
+        9: 2937:  new_idx = re_dfa_add_node (dfa, br_token, 0);
+call    0 returned 9
+        9: 2938:  work_tree = create_tree (NULL, NULL, 0, new_idx);
+call    0 returned 9
+        9: 2939:  if (BE (new_idx == -1 || work_tree == NULL, 0))
+branch  0 taken 9 (fallthrough)
+branch  1 taken 0
+branch  2 taken 0 (fallthrough)
+branch  3 taken 9
+    #####: 2940:    goto parse_bracket_exp_espace;
+        -: 2941:
+        -: 2942:#ifdef RE_ENABLE_I18N
+        -: 2943:  if (mbcset->nmbchars || mbcset->ncoll_syms || mbcset->nequiv_classes
+        -: 2944:      || mbcset->nranges || (MB_CUR_MAX > 1 && (mbcset->nchar_classes
+        -: 2945:						|| mbcset->non_match)))
+        -: 2946:    {
+        -: 2947:      re_token_t alt_token;
+        -: 2948:      bin_tree_t *mbc_tree;
+        -: 2949:      /* Build a tree for complex bracket.  */
+        -: 2950:      br_token.type = COMPLEX_BRACKET;
+        -: 2951:      br_token.opr.mbcset = mbcset;
+        -: 2952:      dfa->has_mb_node = 1;
+        -: 2953:      new_idx = re_dfa_add_node (dfa, br_token, 0);
+        -: 2954:      mbc_tree = create_tree (NULL, NULL, 0, new_idx);
+        -: 2955:      if (BE (new_idx == -1 || mbc_tree == NULL, 0))
+        -: 2956:	goto parse_bracket_exp_espace;
+        -: 2957:      /* Then join them by ALT node.  */
+        -: 2958:      dfa->has_plural_match = 1;
+        -: 2959:      alt_token.type = OP_ALT;
+        -: 2960:      new_idx = re_dfa_add_node (dfa, alt_token, 0);
+        -: 2961:      work_tree = create_tree (work_tree, mbc_tree, 0, new_idx);
+        -: 2962:      if (BE (new_idx != -1 && mbc_tree != NULL, 1))
+        -: 2963:	return work_tree;
+        -: 2964:    }
+        -: 2965:  else
+        -: 2966:    {
+        -: 2967:      free_charset (mbcset);
+        -: 2968:      return work_tree;
+        -: 2969:    }
+        -: 2970:#else /* not RE_ENABLE_I18N */
+        9: 2971:  return work_tree;
+        -: 2972:#endif /* not RE_ENABLE_I18N */
+        -: 2973:
+    #####: 2974: parse_bracket_exp_espace:
+    #####: 2975:  *err = REG_ESPACE;
+    #####: 2976: parse_bracket_exp_free_return:
+    #####: 2977:  re_free (sbcset);
+        -: 2978:#ifdef RE_ENABLE_I18N
+        -: 2979:  free_charset (mbcset);
+        -: 2980:#endif /* RE_ENABLE_I18N */
+    #####: 2981:  return NULL;
+        -: 2982:}
+        -: 2983:
+        -: 2984:/* Parse an element in the bracket expression.  */
+        -: 2985:
+        -: 2986:static reg_errcode_t
+function parse_bracket_element called 39 returned 100% blocks executed 71%
+       39: 2987:parse_bracket_element (elem, regexp, token, token_len, dfa, syntax)
+        -: 2988:     bracket_elem_t *elem;
+        -: 2989:     re_string_t *regexp;
+        -: 2990:     re_token_t *token;
+        -: 2991:     int token_len;
+        -: 2992:     re_dfa_t *dfa;
+        -: 2993:     reg_syntax_t syntax;
+        -: 2994:{
+        -: 2995:#ifdef RE_ENABLE_I18N
+        -: 2996:  int cur_char_size;
+        -: 2997:  cur_char_size = re_string_char_size_at (regexp, re_string_cur_idx (regexp));
+        -: 2998:  if (cur_char_size > 1)
+        -: 2999:    {
+        -: 3000:      elem->type = MB_CHAR;
+        -: 3001:      elem->opr.wch = re_string_wchar_at (regexp, re_string_cur_idx (regexp));
+        -: 3002:      re_string_skip_bytes (regexp, cur_char_size);
+        -: 3003:      return REG_NOERROR;
+        -: 3004:    }
+        -: 3005:#endif /* RE_ENABLE_I18N */
+       39: 3006:  re_string_skip_bytes (regexp, token_len); /* Skip a token.  */
+       39: 3007:  if (token->type == OP_OPEN_COLL_ELEM || token->type == OP_OPEN_CHAR_CLASS
+branch  0 taken 39 (fallthrough)
+branch  1 taken 0
+branch  2 taken 39 (fallthrough)
+branch  3 taken 0
+       39: 3008:      || token->type == OP_OPEN_EQUIV_CLASS)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 39
+    #####: 3009:    return parse_bracket_symbol (elem, regexp, token);
+call    0 never executed
+       39: 3010:  elem->type = SB_CHAR;
+       39: 3011:  elem->opr.ch = token->opr.c;
+       39: 3012:  return REG_NOERROR;
+        -: 3013:}
+        -: 3014:
+        -: 3015:/* Parse a bracket symbol in the bracket expression.  Bracket symbols are
+        -: 3016:   such as [:<character_class>:], [.<collating_element>.], and
+        -: 3017:   [=<equivalent_class>=].  */
+        -: 3018:
+        -: 3019:static reg_errcode_t
+function parse_bracket_symbol called 0 returned 0% blocks executed 0%
+    #####: 3020:parse_bracket_symbol (elem, regexp, token)
+        -: 3021:     bracket_elem_t *elem;
+        -: 3022:     re_string_t *regexp;
+        -: 3023:     re_token_t *token;
+        -: 3024:{
+    #####: 3025:  unsigned char ch, delim = token->opr.c;
+    #####: 3026:  int i = 0;
+    #####: 3027:  for (;; ++i)
+        -: 3028:    {
+    #####: 3029:      if (re_string_eoi(regexp) || i >= BRACKET_NAME_BUF_SIZE)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3030:	return REG_EBRACK;
+    #####: 3031:      if (token->type == OP_OPEN_CHAR_CLASS)
+branch  0 never executed
+branch  1 never executed
+    #####: 3032:	ch = re_string_fetch_byte_case (regexp);
+        -: 3033:      else
+    #####: 3034:	ch = re_string_fetch_byte (regexp);
+    #####: 3035:      if (ch == delim && re_string_peek_byte (regexp, 0) == ']')
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3036:	break;
+    #####: 3037:      elem->opr.name[i] = ch;
+        -: 3038:    }
+    #####: 3039:  re_string_skip_bytes (regexp, 1);
+    #####: 3040:  elem->opr.name[i] = '\0';
+    #####: 3041:  switch (token->type)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -: 3042:    {
+    #####: 3043:    case OP_OPEN_COLL_ELEM:
+    #####: 3044:      elem->type = COLL_SYM;
+    #####: 3045:      break;
+    #####: 3046:    case OP_OPEN_EQUIV_CLASS:
+    #####: 3047:      elem->type = EQUIV_CLASS;
+    #####: 3048:      break;
+    #####: 3049:    case OP_OPEN_CHAR_CLASS:
+    #####: 3050:      elem->type = CHAR_CLASS;
+    #####: 3051:      break;
+    #####: 3052:    default:
+    #####: 3053:      break;
+        -: 3054:    }
+    #####: 3055:  return REG_NOERROR;
+        -: 3056:}
+        -: 3057:
+        -: 3058:  /* Helper function for parse_bracket_exp.
+        -: 3059:     Build the equivalence class which is represented by NAME.
+        -: 3060:     The result are written to MBCSET and SBCSET.
+        -: 3061:     EQUIV_CLASS_ALLOC is the allocated size of mbcset->equiv_classes,
+        -: 3062:     is a pointer argument sinse we may update it.  */
+        -: 3063:
+        -: 3064:static reg_errcode_t
+        -: 3065:#ifdef RE_ENABLE_I18N
+        -: 3066:build_equiv_class (sbcset, mbcset, equiv_class_alloc, name)
+        -: 3067:     re_charset_t *mbcset;
+        -: 3068:     int *equiv_class_alloc;
+        -: 3069:#else /* not RE_ENABLE_I18N */
+function build_equiv_class called 0 returned 0% blocks executed 0%
+    #####: 3070:build_equiv_class (sbcset, name)
+        -: 3071:#endif /* not RE_ENABLE_I18N */
+        -: 3072:     re_bitset_ptr_t sbcset;
+        -: 3073:     const unsigned char *name;
+        -: 3074:{
+        -: 3075:#if defined _LIBC && defined RE_ENABLE_I18N
+        -: 3076:  uint32_t nrules = _NL_CURRENT_WORD (LC_COLLATE, _NL_COLLATE_NRULES);
+        -: 3077:  if (nrules != 0)
+        -: 3078:    {
+        -: 3079:      const int32_t *table, *indirect;
+        -: 3080:      const unsigned char *weights, *extra, *cp;
+        -: 3081:      unsigned char char_buf[2];
+        -: 3082:      int32_t idx1, idx2;
+        -: 3083:      unsigned int ch;
+        -: 3084:      size_t len;
+        -: 3085:      /* This #include defines a local function!  */
+        -: 3086:# include <locale/weight.h>
+        -: 3087:      /* Calculate the index for equivalence class.  */
+        -: 3088:      cp = name;
+        -: 3089:      table = (const int32_t *) _NL_CURRENT (LC_COLLATE, _NL_COLLATE_TABLEMB);
+        -: 3090:      weights = (const unsigned char *) _NL_CURRENT (LC_COLLATE,
+        -: 3091:					       _NL_COLLATE_WEIGHTMB);
+        -: 3092:      extra = (const unsigned char *) _NL_CURRENT (LC_COLLATE,
+        -: 3093:						   _NL_COLLATE_EXTRAMB);
+        -: 3094:      indirect = (const int32_t *) _NL_CURRENT (LC_COLLATE,
+        -: 3095:						_NL_COLLATE_INDIRECTMB);
+        -: 3096:      idx1 = findidx (&cp);
+        -: 3097:      if (BE (idx1 == 0 || cp < name + strlen ((const char *) name), 0))
+        -: 3098:	/* This isn't a valid character.  */
+        -: 3099:	return REG_ECOLLATE;
+        -: 3100:
+        -: 3101:      /* Build single byte matcing table for this equivalence class.  */
+        -: 3102:      char_buf[1] = (unsigned char) '\0';
+        -: 3103:      len = weights[idx1];
+        -: 3104:      for (ch = 0; ch < SBC_MAX; ++ch)
+        -: 3105:	{
+        -: 3106:	  char_buf[0] = ch;
+        -: 3107:	  cp = char_buf;
+        -: 3108:	  idx2 = findidx (&cp);
+        -: 3109:/*
+        -: 3110:	  idx2 = table[ch];
+        -: 3111:*/
+        -: 3112:	  if (idx2 == 0)
+        -: 3113:	    /* This isn't a valid character.  */
+        -: 3114:	    continue;
+        -: 3115:	  if (len == weights[idx2])
+        -: 3116:	    {
+        -: 3117:	      int cnt = 0;
+        -: 3118:	      while (cnt <= len &&
+        -: 3119:		     weights[idx1 + 1 + cnt] == weights[idx2 + 1 + cnt])
+        -: 3120:		++cnt;
+        -: 3121:
+        -: 3122:	      if (cnt > len)
+        -: 3123:		bitset_set (sbcset, ch);
+        -: 3124:	    }
+        -: 3125:	}
+        -: 3126:      /* Check whether the array has enough space.  */
+        -: 3127:      if (*equiv_class_alloc == mbcset->nequiv_classes)
+        -: 3128:	{
+        -: 3129:	  /* Not enough, realloc it.  */
+        -: 3130:	  /* +1 in case of mbcset->nequiv_classes is 0.  */
+        -: 3131:	  *equiv_class_alloc = 2 * mbcset->nequiv_classes + 1;
+        -: 3132:	  /* Use realloc since the array is NULL if *alloc == 0.  */
+        -: 3133:	  mbcset->equiv_classes = re_realloc (mbcset->equiv_classes, int32_t,
+        -: 3134:					      *equiv_class_alloc);
+        -: 3135:	  if (BE (mbcset->equiv_classes == NULL, 0))
+        -: 3136:	    return REG_ESPACE;
+        -: 3137:	}
+        -: 3138:      mbcset->equiv_classes[mbcset->nequiv_classes++] = idx1;
+        -: 3139:    }
+        -: 3140:  else
+        -: 3141:#endif /* _LIBC && RE_ENABLE_I18N */
+        -: 3142:    {
+    #####: 3143:      if (BE (strlen ((const char *) name) != 1, 0))
+branch  0 never executed
+branch  1 never executed
+    #####: 3144:	return REG_ECOLLATE;
+    #####: 3145:      bitset_set (sbcset, *name);
+        -: 3146:    }
+    #####: 3147:  return REG_NOERROR;
+        -: 3148:}
+        -: 3149:
+        -: 3150:  /* Helper function for parse_bracket_exp.
+        -: 3151:     Build the character class which is represented by NAME.
+        -: 3152:     The result are written to MBCSET and SBCSET.
+        -: 3153:     CHAR_CLASS_ALLOC is the allocated size of mbcset->char_classes,
+        -: 3154:     is a pointer argument sinse we may update it.  */
+        -: 3155:
+        -: 3156:static reg_errcode_t
+        -: 3157:#ifdef RE_ENABLE_I18N
+        -: 3158:build_charclass (sbcset, mbcset, char_class_alloc, class_name, syntax)
+        -: 3159:     re_charset_t *mbcset;
+        -: 3160:     int *char_class_alloc;
+        -: 3161:#else /* not RE_ENABLE_I18N */
+function build_charclass called 0 returned 0% blocks executed 0%
+    #####: 3162:build_charclass (sbcset, class_name, syntax)
+        -: 3163:#endif /* not RE_ENABLE_I18N */
+        -: 3164:     re_bitset_ptr_t sbcset;
+        -: 3165:     const unsigned char *class_name;
+        -: 3166:     reg_syntax_t syntax;
+        -: 3167:{
+        -: 3168:  int i;
+    #####: 3169:  const char *name = (const char *) class_name;
+        -: 3170:
+        -: 3171:  /* In case of REG_ICASE "upper" and "lower" match the both of
+        -: 3172:     upper and lower cases.  */
+    #####: 3173:  if ((syntax & RE_ICASE)
+branch  0 never executed
+branch  1 never executed
+    #####: 3174:      && (strcmp (name, "upper") == 0 || strcmp (name, "lower") == 0))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3175:    name = "alpha";
+        -: 3176:
+        -: 3177:#ifdef RE_ENABLE_I18N
+        -: 3178:  /* Check the space of the arrays.  */
+        -: 3179:  if (*char_class_alloc == mbcset->nchar_classes)
+        -: 3180:    {
+        -: 3181:      /* Not enough, realloc it.  */
+        -: 3182:      /* +1 in case of mbcset->nchar_classes is 0.  */
+        -: 3183:      *char_class_alloc = 2 * mbcset->nchar_classes + 1;
+        -: 3184:      /* Use realloc since array is NULL if *alloc == 0.  */
+        -: 3185:      mbcset->char_classes = re_realloc (mbcset->char_classes, wctype_t,
+        -: 3186:					 *char_class_alloc);
+        -: 3187:      if (BE (mbcset->char_classes == NULL, 0))
+        -: 3188:	return REG_ESPACE;
+        -: 3189:    }
+        -: 3190:  mbcset->char_classes[mbcset->nchar_classes++] = __wctype (name);
+        -: 3191:#endif /* RE_ENABLE_I18N */
+        -: 3192:
+        -: 3193:#define BUILD_CHARCLASS_LOOP(ctype_func)\
+        -: 3194:    for (i = 0; i < SBC_MAX; ++i)	\
+        -: 3195:      {					\
+        -: 3196:	if (ctype_func (i))		\
+        -: 3197:	  bitset_set (sbcset, i);	\
+        -: 3198:      }
+        -: 3199:
+    #####: 3200:  if (strcmp (name, "alnum") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3201:    BUILD_CHARCLASS_LOOP (isalnum)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3202:  else if (strcmp (name, "cntrl") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3203:    BUILD_CHARCLASS_LOOP (iscntrl)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3204:  else if (strcmp (name, "lower") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3205:    BUILD_CHARCLASS_LOOP (islower)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3206:  else if (strcmp (name, "space") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3207:    BUILD_CHARCLASS_LOOP (isspace)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3208:  else if (strcmp (name, "alpha") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3209:    BUILD_CHARCLASS_LOOP (isalpha)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3210:  else if (strcmp (name, "digit") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3211:    BUILD_CHARCLASS_LOOP (isdigit)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3212:  else if (strcmp (name, "print") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3213:    BUILD_CHARCLASS_LOOP (isprint)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3214:  else if (strcmp (name, "upper") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3215:    BUILD_CHARCLASS_LOOP (isupper)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3216:  else if (strcmp (name, "blank") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3217:    BUILD_CHARCLASS_LOOP (isblank)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3218:  else if (strcmp (name, "graph") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3219:    BUILD_CHARCLASS_LOOP (isgraph)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3220:  else if (strcmp (name, "punct") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3221:    BUILD_CHARCLASS_LOOP (ispunct)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3222:  else if (strcmp (name, "xdigit") == 0)
+branch  0 never executed
+branch  1 never executed
+    #####: 3223:    BUILD_CHARCLASS_LOOP (isxdigit)
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+        -: 3224:  else
+    #####: 3225:    return REG_ECTYPE;
+        -: 3226:
+    #####: 3227:  return REG_NOERROR;
+        -: 3228:}
+        -: 3229:
+        -: 3230:static bin_tree_t *
+function build_word_op called 0 returned 0% blocks executed 0%
+    #####: 3231:build_word_op (dfa, not, err)
+        -: 3232:     re_dfa_t *dfa;
+        -: 3233:     int not;
+        -: 3234:     reg_errcode_t *err;
+        -: 3235:{
+        -: 3236:  re_bitset_ptr_t sbcset;
+        -: 3237:#ifdef RE_ENABLE_I18N
+        -: 3238:  re_charset_t *mbcset;
+        -: 3239:  int alloc = 0;
+        -: 3240:#else /* not RE_ENABLE_I18N */
+    #####: 3241:  int non_match = 0;
+        -: 3242:#endif /* not RE_ENABLE_I18N */
+        -: 3243:  reg_errcode_t ret;
+        -: 3244:  re_token_t br_token;
+        -: 3245:  bin_tree_t *tree;
+        -: 3246:  int new_idx;
+        -: 3247:
+    #####: 3248:  sbcset = (re_bitset_ptr_t) calloc (sizeof (unsigned int), BITSET_UINTS);
+        -: 3249:#ifdef RE_ENABLE_I18N
+        -: 3250:  mbcset = (re_charset_t *) calloc (sizeof (re_charset_t), 1);
+        -: 3251:#endif /* RE_ENABLE_I18N */
+        -: 3252:
+        -: 3253:#ifdef RE_ENABLE_I18N
+        -: 3254:  if (BE (sbcset == NULL || mbcset == NULL, 0))
+        -: 3255:#else /* not RE_ENABLE_I18N */
+    #####: 3256:  if (BE (sbcset == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+        -: 3257:#endif /* not RE_ENABLE_I18N */
+        -: 3258:    {
+    #####: 3259:      *err = REG_ESPACE;
+    #####: 3260:      return NULL;
+        -: 3261:    }
+        -: 3262:
+    #####: 3263:  if (not)
+branch  0 never executed
+branch  1 never executed
+        -: 3264:    {
+        -: 3265:#ifdef RE_ENABLE_I18N
+        -: 3266:      int i;
+        -: 3267:      /*
+        -: 3268:      if (syntax & RE_HAT_LISTS_NOT_NEWLINE)
+        -: 3269:	bitset_set(cset->sbcset, '\0');
+        -: 3270:      */
+        -: 3271:      mbcset->non_match = 1;
+        -: 3272:      if (MB_CUR_MAX > 1)
+        -: 3273:	for (i = 0; i < SBC_MAX; ++i)
+        -: 3274:	  if (__btowc (i) == WEOF)
+        -: 3275:	    bitset_set (sbcset, i);
+        -: 3276:#else /* not RE_ENABLE_I18N */
+    #####: 3277:      non_match = 1;
+        -: 3278:#endif /* not RE_ENABLE_I18N */
+        -: 3279:    }
+        -: 3280:
+        -: 3281:  /* We don't care the syntax in this case.  */
+    #####: 3282:  ret = build_charclass (sbcset,
+call    0 never executed
+        -: 3283:#ifdef RE_ENABLE_I18N
+        -: 3284:			 mbcset, &alloc,
+        -: 3285:#endif /* RE_ENABLE_I18N */
+        -: 3286:			 (const unsigned char *) "alpha", 0);
+        -: 3287:
+    #####: 3288:  if (BE (ret != REG_NOERROR, 0))
+branch  0 never executed
+branch  1 never executed
+        -: 3289:    {
+    #####: 3290:      re_free (sbcset);
+        -: 3291:#ifdef RE_ENABLE_I18N
+        -: 3292:      free_charset (mbcset);
+        -: 3293:#endif /* RE_ENABLE_I18N */
+    #####: 3294:      *err = REG_ESPACE;
+    #####: 3295:      return NULL;
+        -: 3296:    }
+        -: 3297:  /* \w match '_' also.  */
+    #####: 3298:  bitset_set (sbcset, '_');
+        -: 3299:
+        -: 3300:  /* If it is non-matching list.  */
+        -: 3301:#ifdef RE_ENABLE_I18N
+        -: 3302:  if (mbcset->non_match)
+        -: 3303:#else /* not RE_ENABLE_I18N */
+    #####: 3304:  if (non_match)
+branch  0 never executed
+branch  1 never executed
+        -: 3305:#endif /* not RE_ENABLE_I18N */
+    #####: 3306:    bitset_not (sbcset);
+call    0 never executed
+        -: 3307:
+        -: 3308:  /* Build a tree for simple bracket.  */
+    #####: 3309:  br_token.type = SIMPLE_BRACKET;
+    #####: 3310:  br_token.opr.sbcset = sbcset;
+    #####: 3311:  new_idx = re_dfa_add_node (dfa, br_token, 0);
+call    0 never executed
+    #####: 3312:  tree = create_tree (NULL, NULL, 0, new_idx);
+call    0 never executed
+    #####: 3313:  if (BE (new_idx == -1 || tree == NULL, 0))
+branch  0 never executed
+branch  1 never executed
+branch  2 never executed
+branch  3 never executed
+    #####: 3314:    goto build_word_op_espace;
+        -: 3315:
+        -: 3316:#ifdef RE_ENABLE_I18N
+        -: 3317:  if (MB_CUR_MAX > 1)
+        -: 3318:    {
+        -: 3319:      re_token_t alt_token;
+        -: 3320:      bin_tree_t *mbc_tree;
+        -: 3321:      /* Build a tree for complex bracket.  */
+        -: 3322:      br_token.type = COMPLEX_BRACKET;
+        -: 3323:      br_token.opr.mbcset = mbcset;
+        -: 3324:      dfa->has_mb_node = 1;
+        -: 3325:      new_idx = re_dfa_add_node (dfa, br_token, 0);
+        -: 3326:      mbc_tree = create_tree (NULL, NULL, 0, new_idx);
+        -: 3327:      if (BE (new_idx == -1 || mbc_tree == NULL, 0))
+        -: 3328:	goto build_word_op_espace;
+        -: 3329:      /* Then join them by ALT node.  */
+        -: 3330:      alt_token.type = OP_ALT;
+        -: 3331:      new_idx = re_dfa_add_node (dfa, alt_token, 0);
+        -: 3332:      tree = create_tree (tree, mbc_tree, 0, new_idx);
+        -: 3333:      if (BE (new_idx != -1 && mbc_tree != NULL, 1))
+        -: 3334:	return tree;
+        -: 3335:    }
+        -: 3336:  else
+        -: 3337:    {
+        -: 3338:      free_charset (mbcset);
+        -: 3339:      return tree;
+        -: 3340:    }
+        -: 3341:#else /* not RE_ENABLE_I18N */
+    #####: 3342:  return tree;
+        -: 3343:#endif /* not RE_ENABLE_I18N */
+        -: 3344:
+    #####: 3345: build_word_op_espace:
+    #####: 3346:  re_free (sbcset);
+        -: 3347:#ifdef RE_ENABLE_I18N
+        -: 3348:  free_charset (mbcset);
+        -: 3349:#endif /* RE_ENABLE_I18N */
+    #####: 3350:  *err = REG_ESPACE;
+    #####: 3351:  return NULL;
+        -: 3352:}
+        -: 3353:
+        -: 3354:/* This is intended for the expressions like "a{1,3}".
+        -: 3355:   Fetch a number from `input', and return the number.
+        -: 3356:   Return -1, if the number field is empty like "{,1}".
+        -: 3357:   Return -2, If an error is occured.  */
+        -: 3358:
+        -: 3359:static int
+function fetch_number called 2 returned 100% blocks executed 81%
+        2: 3360:fetch_number (input, token, syntax)
+        -: 3361:     re_string_t *input;
+        -: 3362:     re_token_t *token;
+        -: 3363:     reg_syntax_t syntax;
+        -: 3364:{
+        2: 3365:  int num = -1;
+        -: 3366:  unsigned char c;
+        -: 3367:  while (1)
+        -: 3368:    {
+        4: 3369:      *token = fetch_token (input, syntax);
+call    0 returned 4
+        4: 3370:      c = token->opr.c;
+        4: 3371:      if (BE (token->type == END_OF_RE, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 4
+    #####: 3372:	return -2;
+        4: 3373:      if (token->type == OP_CLOSE_DUP_NUM || c == ',')
+branch  0 taken 3 (fallthrough)
+branch  1 taken 1
+branch  2 taken 2 (fallthrough)
+branch  3 taken 1
+        -: 3374:	break;
+        2: 3375:      num = ((token->type != CHARACTER || c < '0' || '9' < c || num == -2)
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+branch  2 taken 2 (fallthrough)
+branch  3 taken 0
+branch  4 taken 2 (fallthrough)
+branch  5 taken 0
+       4*: 3376:	     ? -2 : ((num == -1) ? c - '0' : num * 10 + c - '0'));
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+branch  2 taken 2 (fallthrough)
+branch  3 taken 0
+       2*: 3377:      num = (num > RE_DUP_MAX) ? -2 : num;
+branch  0 taken 2 (fallthrough)
+branch  1 taken 0
+        -: 3378:    }
+        2: 3379:  return num;
+        -: 3380:}
+        -: 3381:
+        -: 3382:#ifdef RE_ENABLE_I18N
+        -: 3383:static void
+        -: 3384:free_charset (re_charset_t *cset)
+        -: 3385:{
+        -: 3386:  re_free (cset->mbchars);
+        -: 3387:# ifdef _LIBC
+        -: 3388:  re_free (cset->coll_syms);
+        -: 3389:  re_free (cset->equiv_classes);
+        -: 3390:  re_free (cset->range_starts);
+        -: 3391:  re_free (cset->range_ends);
+        -: 3392:# endif
+        -: 3393:  re_free (cset->char_classes);
+        -: 3394:  re_free (cset);
+        -: 3395:}
+        -: 3396:#endif /* RE_ENABLE_I18N */
+        -: 3397:
+        -: 3398:/* Functions for binary tree operation.  */
+        -: 3399:
+        -: 3400:/* Create a node of tree.
+        -: 3401:   Note: This function automatically free left and right if malloc fails.  */
+        -: 3402:
+        -: 3403:static bin_tree_t *
+function create_tree called 5830 returned 100% blocks executed 70%
+     5830: 3404:create_tree (left, right, type, index)
+        -: 3405:     bin_tree_t *left;
+        -: 3406:     bin_tree_t *right;
+        -: 3407:     re_token_type_t type;
+        -: 3408:     int index;
+        -: 3409:{
+        -: 3410:  bin_tree_t *tree;
+     5830: 3411:  tree = re_malloc (bin_tree_t, 1);
+     5830: 3412:  if (BE (tree == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 5830
+        -: 3413:    {
+    #####: 3414:      free_bin_tree (left);
+call    0 never executed
+    #####: 3415:      free_bin_tree (right);
+call    0 never executed
+    #####: 3416:      return NULL;
+        -: 3417:    }
+     5830: 3418:  tree->parent = NULL;
+     5830: 3419:  tree->left = left;
+     5830: 3420:  tree->right = right;
+     5830: 3421:  tree->type = type;
+     5830: 3422:  tree->node_idx = index;
+     5830: 3423:  tree->first = -1;
+     5830: 3424:  tree->next = -1;
+     5830: 3425:  re_node_set_init_empty (&tree->eclosure);
+        -: 3426:
+     5830: 3427:  if (left != NULL)
+branch  0 taken 2675 (fallthrough)
+branch  1 taken 3155
+     2675: 3428:    left->parent = tree;
+     5830: 3429:  if (right != NULL)
+branch  0 taken 2545 (fallthrough)
+branch  1 taken 3285
+     2545: 3430:    right->parent = tree;
+     5830: 3431:  return tree;
+        -: 3432:}
+        -: 3433:
+        -: 3434:/* Free the sub tree pointed by TREE.  */
+        -: 3435:
+        -: 3436:static void
+function free_bin_tree called 12270 returned 100% blocks executed 100%
+    12270: 3437:free_bin_tree (tree)
+        -: 3438:     bin_tree_t *tree;
+        -: 3439:{
+    12270: 3440:  if (tree == NULL)
+branch  0 taken 6440 (fallthrough)
+branch  1 taken 5830
+     6440: 3441:    return;
+        -: 3442:  /*re_node_set_free (&tree->eclosure);*/
+     5830: 3443:  free_bin_tree (tree->left);
+call    0 returned 5830
+     5830: 3444:  free_bin_tree (tree->right);
+call    0 returned 5830
+     5830: 3445:  re_free (tree);
+        -: 3446:}
+        -: 3447:
+        -: 3448:/* Duplicate the node SRC, and return new node.  */
+        -: 3449:
+        -: 3450:static bin_tree_t *
+function duplicate_tree called 1 returned 100% blocks executed 41%
+        1: 3451:duplicate_tree (src, dfa)
+        -: 3452:     const bin_tree_t *src;
+        -: 3453:     re_dfa_t *dfa;
+        -: 3454:{
+        1: 3455:  bin_tree_t *left = NULL, *right = NULL, *new_tree;
+        -: 3456:  int new_node_idx;
+        -: 3457:  /* Since node indies must be according to Post-order of the tree,
+        -: 3458:     we must duplicate the left at first.  */
+        1: 3459:  if (src->left != NULL)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+        -: 3460:    {
+    #####: 3461:      left = duplicate_tree (src->left, dfa);
+call    0 never executed
+    #####: 3462:      if (left == NULL)
+branch  0 never executed
+branch  1 never executed
+    #####: 3463:	return NULL;
+        -: 3464:    }
+        -: 3465:
+        -: 3466:  /* Secondaly, duplicate the right.  */
+        1: 3467:  if (src->right != NULL)
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+        -: 3468:    {
+    #####: 3469:      right = duplicate_tree (src->right, dfa);
+call    0 never executed
+    #####: 3470:      if (right == NULL)
+branch  0 never executed
+branch  1 never executed
+        -: 3471:	{
+    #####: 3472:	  free_bin_tree (left);
+call    0 never executed
+    #####: 3473:	  return NULL;
+        -: 3474:	}
+        -: 3475:    }
+        -: 3476:
+        -: 3477:  /* At last, duplicate itself.  */
+        1: 3478:  if (src->type == NON_TYPE)
+branch  0 taken 1 (fallthrough)
+branch  1 taken 0
+        -: 3479:    {
+        1: 3480:      new_node_idx = re_dfa_add_node (dfa, dfa->nodes[src->node_idx], 0);
+call    0 returned 1
+        1: 3481:      dfa->nodes[new_node_idx].duplicated = 1;
+        1: 3482:      if (BE (new_node_idx == -1, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+        -: 3483:	{
+    #####: 3484:	  free_bin_tree (left);
+call    0 never executed
+    #####: 3485:	  free_bin_tree (right);
+call    0 never executed
+    #####: 3486:	  return NULL;
+        -: 3487:	}
+        -: 3488:    }
+        -: 3489:  else
+    #####: 3490:    new_node_idx = src->type;
+        -: 3491:
+        1: 3492:  new_tree = create_tree (left, right, src->type, new_node_idx);
+call    0 returned 1
+        1: 3493:  if (BE (new_tree == NULL, 0))
+branch  0 taken 0 (fallthrough)
+branch  1 taken 1
+        -: 3494:    {
+    #####: 3495:      free_bin_tree (left);
+call    0 never executed
+    #####: 3496:      free_bin_tree (right);
+call    0 never executed
+        -: 3497:    }
+        1: 3498:  return new_tree;
+        -: 3499:}

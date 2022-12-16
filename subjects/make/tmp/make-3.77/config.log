@@ -1,0 +1,442 @@
+This file contains any messages produced by compilers while
+running configure, to aid debugging if configure makes a mistake.
+
+configure:594: checking for a BSD compatible install
+configure:647: checking whether build environment is sane
+configure:704: checking whether make sets ${MAKE}
+configure:750: checking for working aclocal
+configure:763: checking for working autoconf
+configure:776: checking for working automake
+configure:789: checking for working autoheader
+configure:802: checking for working makeinfo
+configure:833: checking whether make sets ${MAKE}
+configure:862: checking for gcc
+configure:939: checking whether the C compiler (gcc  ) works
+configure:953: gcc -o conftest    conftest.c  1>&5
+configure:950:1: warning: return type defaults to 'int' [-Wimplicit-int]
+  950 | main(){return(0);}
+      | ^~~~
+configure:973: checking whether the C compiler (gcc  ) is a cross-compiler
+configure:978: checking whether we are using GNU C
+configure:987: gcc -E conftest.c
+configure:1002: checking whether gcc accepts -g
+configure:1040: checking for a BSD compatible install
+configure:1090: checking how to run the C preprocessor
+configure:1111: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1150: checking for AIX
+configure:1174: checking for POSIXized ISC
+configure:1196: checking for minix/config.h
+configure:1206: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1202:10: fatal error: minix/config.h: No such file or directory
+ 1202 | #include <minix/config.h>
+      |          ^~~~~~~~~~~~~~~~
+compilation terminated.
+configure: failed program was:
+#line 1201 "configure"
+#include "confdefs.h"
+#include <minix/config.h>
+configure:1247: checking whether large file support needs explicit enabling
+configure:1279: checking for ANSI C header files
+configure:1292: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1359: gcc -o conftest -g -O2   conftest.c  1>&5
+configure: In function 'main':
+configure:1354:67: warning: implicit declaration of function 'exit' [-Wimplicit-function-declaration]
+ 1354 | if (XOR (islower (i), ISLOWER (i)) || toupper (i) != TOUPPER (i)) exit(2);
+      |                                                                   ^~~~
+configure:1350:1: note: include '<stdlib.h>' or provide a declaration of 'exit'
+ 1349 | #include <ctype.h>
+  +++ |+#include <stdlib.h>
+ 1350 | #define ISLOWER(c) ('a' <= (c) && (c) <= 'z')
+configure:1354:67: warning: incompatible implicit declaration of built-in function 'exit' [-Wbuiltin-declaration-mismatch]
+ 1354 | if (XOR (islower (i), ISLOWER (i)) || toupper (i) != TOUPPER (i)) exit(2);
+      |                                                                   ^~~~
+configure:1354:67: note: include '<stdlib.h>' or provide a declaration of 'exit'
+configure:1355:1: warning: incompatible implicit declaration of built-in function 'exit' [-Wbuiltin-declaration-mismatch]
+ 1355 | exit (0); }
+      | ^~~~
+configure:1355:1: note: include '<stdlib.h>' or provide a declaration of 'exit'
+configure:1387: checking for dirent.h that defines DIR
+configure:1400: gcc -c -g -O2  conftest.c 1>&5
+configure:1425: checking for opendir in -ldir
+configure:1444: gcc -o conftest -g -O2   conftest.c -ldir   1>&5
+/usr/bin/ld: cannot find -ldir: No such file or directory
+collect2: error: ld returned 1 exit status
+configure: failed program was:
+#line 1433 "configure"
+#include "confdefs.h"
+/* Override any gcc2 internal prototype to avoid an error.  */
+/* We use char because int might match the return type of a gcc2
+    builtin and then its argument prototype would still apply.  */
+char opendir();
+
+int main() {
+opendir()
+; return 0; }
+configure:1508: checking for uid_t in sys/types.h
+configure:1541: checking for pid_t
+configure:1574: checking return type of signal handlers
+configure:1596: gcc -c -g -O2  conftest.c 1>&5
+configure:1619: checking for unistd.h
+configure:1629: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1619: checking for limits.h
+configure:1629: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1619: checking for sys/param.h
+configure:1629: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1619: checking for fcntl.h
+configure:1629: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1619: checking for string.h
+configure:1629: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1619: checking for memory.h
+configure:1629: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1619: checking for sys/timeb.h
+configure:1629: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:1657: checking whether gcc and cc understand -c and -o together
+configure:1672: gcc -c conftest.c -o conftest.o 1>&5
+conftest.c:1:1: warning: return type defaults to 'int' [-Wimplicit-int]
+    1 | foo(){}
+      | ^~~
+configure:1673: gcc -c conftest.c -o conftest.o 1>&5
+conftest.c:1:1: warning: return type defaults to 'int' [-Wimplicit-int]
+    1 | foo(){}
+      | ^~~
+configure:1678: cc -c conftest.c 1>&5
+conftest.c:1:1: warning: return type defaults to 'int' [-Wimplicit-int]
+    1 | foo(){}
+      | ^~~
+configure:1680: cc -c conftest.c -o conftest.o 1>&5
+conftest.c:1:1: warning: return type defaults to 'int' [-Wimplicit-int]
+    1 | foo(){}
+      | ^~~
+configure:1681: cc -c conftest.c -o conftest.o 1>&5
+conftest.c:1:1: warning: return type defaults to 'int' [-Wimplicit-int]
+    1 | foo(){}
+      | ^~~
+configure:1708: checking for working const
+configure:1762: gcc -c -g -O2  conftest.c 1>&5
+configure:1782: checking whether stat file-mode macros are broken
+configure:1846: checking for memmove
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1858:6: warning: conflicting types for built-in function 'memmove'; expected 'void *(void *, const void *, long unsigned int)' [-Wbuiltin-declaration-mismatch]
+ 1858 | char $ac_func();
+      |      ^~~~~~~
+configure:1855:1: note: 'memmove' is declared in header '<string.h>'
+ 1854 | #include <assert.h>
+  +++ |+#include <string.h>
+ 1855 | /* Override any gcc2 internal prototype to avoid an error.  */
+configure:1846: checking for psignal
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for mktemp
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+/usr/bin/ld: /tmp/ccYSRuxe.o: in function `main':
+/home/test/big-drive/subjects/make/tmp/make-3.77/configure:1868: warning: the use of `mktemp' is dangerous, better use `mkstemp' or `mkdtemp'
+configure:1846: checking for pstat_getdynamic
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+/usr/bin/ld: /tmp/ccakVboL.o: in function `main':
+/home/test/big-drive/subjects/make/tmp/make-3.77/configure:1868: undefined reference to `pstat_getdynamic'
+collect2: error: ld returned 1 exit status
+configure: failed program was:
+#line 1851 "configure"
+#include "confdefs.h"
+/* System header to define __stub macros and hopefully few prototypes,
+    which can conflict with char pstat_getdynamic(); below.  */
+#include <assert.h>
+/* Override any gcc2 internal prototype to avoid an error.  */
+/* We use char because int might match the return type of a gcc2
+    builtin and then its argument prototype would still apply.  */
+char pstat_getdynamic();
+
+int main() {
+
+/* The GNU C library defines this for functions which it implements
+    to always fail with ENOSYS.  Some functions are actually named
+    something starting with __ and the normal name is an alias.  */
+#if defined (__stub_pstat_getdynamic) || defined (__stub___pstat_getdynamic)
+choke me
+#else
+pstat_getdynamic();
+#endif
+
+; return 0; }
+configure:1846: checking for dup2
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for getcwd
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for sigsetmask
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for getgroups
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for setlinebuf
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for seteuid
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for setegid
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for setreuid
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for setregid
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for strerror
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1846: checking for strsignal
+configure:1874: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1899: checking for sys_siglist
+configure:1911: gcc -o conftest -g -O2   conftest.c  1>&5
+configure: In function 'main':
+configure:1907:29: warning: implicit declaration of function 'puts' [-Wimplicit-function-declaration]
+ 1907 | extern char *sys_siglist[]; puts(*sys_siglist);
+      |                             ^~~~
+configure:1905:1: note: include '<stdio.h>' or provide a declaration of 'puts'
+ 1904 | #include "confdefs.h"
+  +++ |+#include <stdio.h>
+ 1905 | 
+/usr/bin/ld: /tmp/ccYYP6Bg.o: warning: relocation against `sys_siglist' in read-only section `.text.startup'
+/usr/bin/ld: /tmp/ccYYP6Bg.o: in function `main':
+/home/test/big-drive/subjects/make/tmp/make-3.77/configure:1907: undefined reference to `sys_siglist'
+/usr/bin/ld: warning: creating DT_TEXTREL in a PIE
+collect2: error: ld returned 1 exit status
+configure: failed program was:
+#line 1904 "configure"
+#include "confdefs.h"
+
+int main() {
+extern char *sys_siglist[]; puts(*sys_siglist);
+; return 0; }
+configure:1934: checking for working alloca.h
+configure:1946: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:1967: checking for alloca
+configure:1995: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:2162: checking for vfork.h
+configure:2172: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:2168:10: fatal error: vfork.h: No such file or directory
+ 2168 | #include <vfork.h>
+      |          ^~~~~~~~~
+compilation terminated.
+configure: failed program was:
+#line 2167 "configure"
+#include "confdefs.h"
+#include <vfork.h>
+configure:2197: checking for working vfork
+configure:2347: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:2273:1: warning: return type defaults to 'int' [-Wimplicit-int]
+ 2273 | sparc_address_test (arg) int arg;
+      | ^~~~~~~~~~~~~~~~~~
+configure:2290:1: warning: return type defaults to 'int' [-Wimplicit-int]
+ 2290 | main() {
+      | ^~~~
+configure: In function 'main':
+configure:2328:12: warning: implicit declaration of function 'wait' [-Wimplicit-function-declaration]
+ 2328 |     while (wait(&status) != child)
+      |            ^~~~
+configure:2330:5: warning: implicit declaration of function 'exit' [-Wimplicit-function-declaration]
+ 2330 |     exit(
+      |     ^~~~
+configure:2259:1: note: include '<stdlib.h>' or provide a declaration of 'exit'
+ 2258 | #include <unistd.h>
+  +++ |+#include <stdlib.h>
+ 2259 | #endif
+configure:2330:5: warning: incompatible implicit declaration of built-in function 'exit' [-Wbuiltin-declaration-mismatch]
+ 2330 |     exit(
+      |     ^~~~
+configure:2330:5: note: include '<stdlib.h>' or provide a declaration of 'exit'
+configure: In function 'sparc_address_test':
+configure:2285:7: warning: ignoring return value of 'write' declared with attribute 'warn_unused_result' [-Wunused-result]
+ 2285 |       write(-1, "", 0);
+      |       ^~~~~~~~~~~~~~~~
+configure:2370: checking whether setvbuf arguments are reversed
+configure:2392: gcc -o conftest -g -O2   conftest.c  1>&5
+configure:2381:1: warning: return type defaults to 'int' [-Wimplicit-int]
+ 2381 | main () {
+      | ^~~~
+configure: In function 'main':
+configure:2385:23: warning: passing argument 2 of 'setvbuf' makes pointer from integer without a cast [-Wint-conversion]
+ 2385 |   if (setvbuf(stdout, _IOLBF, (char *) main, BUFSIZ) != 0)
+      |                       ^~~~~~
+      |                       |
+      |                       int
+In file included from configure:2379:
+/usr/include/stdio.h:332:65: note: expected 'char * restrict' but argument is of type 'int'
+  332 | extern int setvbuf (FILE *__restrict __stream, char *__restrict __buf,
+      |                                                ~~~~~~~~~~~~~~~~~^~~~~
+configure:2385:31: warning: passing argument 3 of 'setvbuf' makes integer from pointer without a cast [-Wint-conversion]
+ 2385 |   if (setvbuf(stdout, _IOLBF, (char *) main, BUFSIZ) != 0)
+      |                               ^~~~~~~~~~~~~
+      |                               |
+      |                               char *
+In file included from configure:2379:
+/usr/include/stdio.h:333:25: note: expected 'int' but argument is of type 'char *'
+  333 |                     int __modes, size_t __n) __THROW;
+      |                     ~~~~^~~~~~~
+configure:2386:5: warning: implicit declaration of function 'exit' [-Wimplicit-function-declaration]
+ 2386 |     exit(1);
+      |     ^~~~
+configure:2380:1: note: include '<stdlib.h>' or provide a declaration of 'exit'
+ 2379 | #include <stdio.h>
+  +++ |+#include <stdlib.h>
+ 2380 | /* If setvbuf has the reversed format, exit 0. */
+configure:2386:5: warning: incompatible implicit declaration of built-in function 'exit' [-Wbuiltin-declaration-mismatch]
+ 2386 |     exit(1);
+      |     ^~~~
+configure:2386:5: note: include '<stdlib.h>' or provide a declaration of 'exit'
+configure:2388:3: warning: incompatible implicit declaration of built-in function 'exit' [-Wbuiltin-declaration-mismatch]
+ 2388 |   exit(0);                      /* Non-reversed systems segv here.  */
+      |   ^~~~
+configure:2388:3: note: include '<stdlib.h>' or provide a declaration of 'exit'
+configure: failed program was:
+#line 2378 "configure"
+#include "confdefs.h"
+#include <stdio.h>
+/* If setvbuf has the reversed format, exit 0. */
+main () {
+  /* This call has the arguments reversed.
+     A reversed system may check and see that the address of main
+     is not _IOLBF, _IONBF, or _IOFBF, and return nonzero.  */
+  if (setvbuf(stdout, _IOLBF, (char *) main, BUFSIZ) != 0)
+    exit(1);
+  putc('\r', stdout);
+  exit(0);			/* Non-reversed systems segv here.  */
+}
+configure:2421: checking for elf_begin in -lelf
+configure:2440: gcc -o conftest -g -O2   conftest.c -lelf   1>&5
+/usr/bin/ld: cannot find -lelf: No such file or directory
+collect2: error: ld returned 1 exit status
+configure: failed program was:
+#line 2429 "configure"
+#include "confdefs.h"
+/* Override any gcc2 internal prototype to avoid an error.  */
+/* We use char because int might match the return type of a gcc2
+    builtin and then its argument prototype would still apply.  */
+char elf_begin();
+
+int main() {
+elf_begin()
+; return 0; }
+configure:2461: checking for kvm_open in -lkvm
+configure:2480: gcc -o conftest -g -O2   conftest.c -lkvm   1>&5
+/usr/bin/ld: cannot find -lkvm: No such file or directory
+collect2: error: ld returned 1 exit status
+configure: failed program was:
+#line 2469 "configure"
+#include "confdefs.h"
+/* Override any gcc2 internal prototype to avoid an error.  */
+/* We use char because int might match the return type of a gcc2
+    builtin and then its argument prototype would still apply.  */
+char kvm_open();
+
+int main() {
+kvm_open()
+; return 0; }
+configure:2502: checking for getloadavg in -lutil
+configure:2521: gcc -o conftest -g -O2   conftest.c -lutil   1>&5
+configure:2593: checking for getloadavg
+configure:2621: gcc -o conftest -g -O2   conftest.c -lutil  1>&5
+configure:2948: checking whether getloadavg requires setgid
+configure:2984: checking group of /dev/kmem
+configure:3004: checking for kstat_open in -lkstat
+configure:3023: gcc -o conftest -g -O2   conftest.c -lkstat  -lutil  1>&5
+/usr/bin/ld: cannot find -lkstat: No such file or directory
+collect2: error: ld returned 1 exit status
+configure: failed program was:
+#line 3012 "configure"
+#include "confdefs.h"
+/* Override any gcc2 internal prototype to avoid an error.  */
+/* We use char because int might match the return type of a gcc2
+    builtin and then its argument prototype would still apply.  */
+char kstat_open();
+
+int main() {
+kstat_open()
+; return 0; }
+configure:3051: checking for working strcoll
+configure:3069: gcc -o conftest -g -O2   conftest.c -lutil  1>&5
+configure:3061:1: warning: return type defaults to 'int' [-Wimplicit-int]
+ 3061 | main ()
+      | ^~~~
+configure: In function 'main':
+configure:3063:3: warning: implicit declaration of function 'exit' [-Wimplicit-function-declaration]
+ 3063 |   exit (strcoll ("abc", "def") >= 0 ||
+      |   ^~~~
+configure:3061:1: note: include '<stdlib.h>' or provide a declaration of 'exit'
+ 3060 | #include <string.h>
+  +++ |+#include <stdlib.h>
+ 3061 | main ()
+configure:3063:3: warning: incompatible implicit declaration of built-in function 'exit' [-Wbuiltin-declaration-mismatch]
+ 3063 |   exit (strcoll ("abc", "def") >= 0 ||
+      |   ^~~~
+configure:3063:3: note: include '<stdlib.h>' or provide a declaration of 'exit'
+configure:3097: checking for sys/wait.h
+configure:3107: gcc -E  conftest.c >/dev/null 2>conftest.out
+configure:3135: checking for waitpid
+configure:3163: gcc -o conftest -g -O2   conftest.c -lutil  1>&5
+configure:3135: checking for wait3
+configure:3163: gcc -o conftest -g -O2   conftest.c -lutil  1>&5
+configure:3188: checking for union wait
+configure:3216: gcc -o conftest -g -O2   conftest.c -lutil  1>&5
+configure: In function 'main':
+configure:3197:12: error: storage size of 'status' isn't known
+ 3197 | union wait status; int pid; pid = wait (&status);
+      |            ^~~~~~
+configure:3205:4: error: 'blow' undeclared (first use in this function)
+ 3205 | -- blow chunks here --
+      |    ^~~~
+configure:3205:4: note: each undeclared identifier is reported only once for each function it appears in
+configure:3205:8: error: expected ';' before 'chunks'
+ 3205 | -- blow chunks here --
+      |        ^~~~~~~
+      |        ;
+configure: failed program was:
+#line 3193 "configure"
+#include "confdefs.h"
+#include <sys/types.h>
+#include <sys/wait.h>
+int main() {
+union wait status; int pid; pid = wait (&status);
+#ifdef WEXITSTATUS
+/* Some POSIXoid systems have both the new-style macros and the old
+   union wait type, and they do not work together.  If union wait
+   conflicts with WEXITSTATUS et al, we don't want to use it at all.  */
+if (WEXITSTATUS (status) != 0) pid = -1;
+#ifdef WTERMSIG
+/* If we have WEXITSTATUS and WTERMSIG, just use them on ints.  */
+-- blow chunks here --
+#endif
+#endif
+#ifdef HAVE_WAITPID
+/* Make sure union wait works with waitpid.  */
+pid = waitpid (-1, &status, 0);
+#endif
+
+; return 0; }
+configure:3237: checking for sys_siglist declaration in signal.h or unistd.h
+configure:3254: gcc -c -g -O2  conftest.c 1>&5
+configure: In function 'main':
+configure:3250:15: error: 'sys_siglist' undeclared (first use in this function)
+ 3250 | char *msg = *(sys_siglist + 1);
+      |               ^~~~~~~~~~~
+configure:3250:15: note: each undeclared identifier is reported only once for each function it appears in
+configure: failed program was:
+#line 3242 "configure"
+#include "confdefs.h"
+#include <sys/types.h>
+#include <signal.h>
+/* NetBSD declares sys_siglist in unistd.h.  */
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+int main() {
+char *msg = *(sys_siglist + 1);
+; return 0; }
+configure:3278: checking for getpwnam in -lsun
+configure:3297: gcc -o conftest -g -O2   conftest.c -lsun  -lutil  1>&5
+/usr/bin/ld: cannot find -lsun: No such file or directory
+collect2: error: ld returned 1 exit status
+configure: failed program was:
+#line 3286 "configure"
+#include "confdefs.h"
+/* Override any gcc2 internal prototype to avoid an error.  */
+/* We use char because int might match the return type of a gcc2
+    builtin and then its argument prototype would still apply.  */
+char getpwnam();
+
+int main() {
+getpwnam()
+; return 0; }

@@ -1,0 +1,104 @@
+This document describes mandatory procedures that you should be done for
+your C subject in order to use fault-matrix tools.
+
+NOTE: 
+	- Skip step 1 if you have the following executables: 
+		combine_fault_data, gen_temp_file, and get_fault_matrix_stats
+        - To use gen_fault_matrix tools, you should have the same directory
+          structure as specified for a subject, described in the subject
+          handbook on the subjects web page.
+          That is, we assume your subject directory has at least
+          the following directories:
+          (each xxx.alt contains v0, v1, ..., vn, depending on your subject)
+                info            source          testplans.alt
+                inputs          outputs         versions.alt
+                outputs.alt     scripts         testplans
+
+          Otherwise, you have to modify gen_fault_matrix tools to adjust
+          them for your environment.
+
+
+1. Compile tools by typing
+	make build
+
+2. Set environment variable experiment_root to point on parent directory of 
+   subjects directory by typing "setenv experiment_root <path>"
+
+3. Make sure that the program mts in the current path.  
+
+4. Set the variable "universe_multiple" in make_fault_matrix_with_names.sh
+   (make_fault_matrix.sh) to access the correct universe file.
+   Depending on your subject, you may have a single universe file across
+   all versions or different universe files for different versions.
+  
+   4.1) Single universe file
+          If you have a single universe file, say "universe.tsl", which
+          applies to all versions, then you should locate it in the
+          directory "testplans.alt" and set "universe_multiple=0"
+          in make_fault_matrix_with_names.sh (make_fault_matrix.sh).
+                (example)
+                testplans.alt/universe.tsl
+
+   4.2) Multiple universe files
+          If you have multiple universe files for different versions,
+          then you should locate them in the corresponding directory
+          "testplans.alt/vk", where 'k' corresponds to the version number
+          and set "universe_multiple=1" in make_fault_matrix_with_names.sh
+          (make_fault_matrix.sh).
+          Since a universe file could be inherited by the following versions,
+          testplans.alt's subdirectories may have the same universe file.
+          For example,
+                Assume testplans.alt has v0, v1, v2, v3 and universe file
+                "v0.tsl.universe" in v0 is inherited by all the consecutive
+                versions. Then all directories contain v0.tsl.universe and
+                may have a new universe file if they have new features to be
+                tested and in turn this new universe could be inherited by
+                the next versions, too.
+                v0 - v0.tsl.universe
+                v1 - v0.tsl.universe, v1.tsl.universe
+                v2 - v0.tsl.universe, v1.tsl.universe
+                v3 - v0.tsl.universe, v1.tsl.universe, v3.tsl.universe
+
+                Then, you may give "v0.tsl.universe", "v1.tsl.universe", or
+                "v3.tsl.universe" as universe file name when you run
+                make_fault_matrix_with_names.sh by specifying
+                corresponding version number.
+
+   By default, we set "universe_multiple=0" in make_fault_matrix.sh and
+   make_fault_matrix_with_names.sh.
+
+
+5. Create ${experiment_root}/<program subject>/versions.alt/seeded
+   directory and its subdirectories v1, v2, v3, ..., vn, each containing
+   seeded faults.
+   Also, it must have FaultSeeds.h file in each vk.  
+   (FaultSeeds.h file MUST contain in each line the following data:
+     /* #define <fault_name> */
+     /* #define <fault_name> */
+		:
+   make sure that there are spaces between comment delimiters and 
+   <fault name> and make sure that there are NO empty lines, each 
+   line corresponds to exactly one fault)
+   Also, each vk must contain Makefile which has a target "build" which create 
+   executable <program>.exe and must provide means of supplying variable 
+   $(COMPILE_PARAMETERS) to compile stage.  
+   For example:
+	build: grep.c
+		gcc $(COMPILE_PARAMETERS) -o grep.exe grep.c
+
+6. Run the tool by typing 
+	make_fault_matrix.sh <program subject> <number of versions>
+	(or make_fault_matrix_with_names.sh <prog> <version start> 
+	    <number of versions> <test universe file> <fault matrix file>)
+
+   For grep, it is:
+	make_fault_matrix.sh grep 5
+
+7. The tool will create fault matrices named "fault-matrix.tsl" and place 
+    them into directories v1, v2, ..., vn which are subdirectories of 
+    ${experiment_root}/subjects/<program subject>/info.  
+
+8. Run analysis tool for a particular fault matrix by typing
+	get_fault_matrix_stats <fault matrix>
+    It will print out which tests reveal which fault and, for each fault, 
+    the percentage of tests which reveal it.  

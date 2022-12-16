@@ -1,0 +1,38 @@
+--------------------------------------------------------------------------------
+Compiling correct version 0
+    Statement coverage: 2574 of 5484, 46 percent
+    Branch    coverage: 2331 of 4458, 52 percent
+Finished processing original version
+    Failed tests: 0 out of 793
+--------------------------------------------------------------------------------
+Compiling correct version 1
+    Statement coverage: 2678 of 5629, 47 percent
+    Branch    coverage: 2487 of 4602, 54 percent
+Compiling faulty  version 1 with 19 faults
+    Failed tests: 790 out of 793
+    Statement coverage: 279 of 5628, 4 percent
+    Branch    coverage: 213 of 4602, 4 percent
+--------------------------------------------------------------------------------
+Compiling correct version 2
+    Statement coverage: 2835 of 5957, 47 percent
+    Branch    coverage: 2599 of 4804, 54 percent
+Compiling faulty  version 2 with 6 faults
+    Failed tests: 775 out of 793
+    Statement coverage: 2806 of 5955, 47 percent
+    Branch    coverage: 2579 of 4804, 53 percent
+--------------------------------------------------------------------------------
+Compiling correct version 3
+    Statement coverage: 1630 of 6109, 26 percent
+    Branch    coverage: 1396 of 4825, 28 percent
+Compiling faulty  version 3 with 5 faults
+    Failed tests: 384 out of 793
+    Statement coverage: 1601 of 6108, 26 percent
+    Branch    coverage: 1374 of 4825, 28 percent
+--------------------------------------------------------------------------------
+Compiling correct version 4
+    Statement coverage: 1880 of 6834, 27 percent
+    Branch    coverage: 1637 of 5429, 30 percent
+Compiling faulty  version 4 with 5 faults
+    Failed tests: 384 out of 793
+    Statement coverage: 1880 of 6833, 27 percent
+    Branch    coverage: 1637 of 5429, 30 percent
